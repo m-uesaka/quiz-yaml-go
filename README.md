@@ -52,6 +52,16 @@ go test -cover ./...
 go test -v ./...
 ```
 
+### YAMLファイルのバリデーション
+
+```bash
+# YAMLファイルの構文と内容をチェック（変換は行わない）
+go run main.go -input quiz.yaml -validate
+
+# ビルド済みバイナリを使用
+./quiz-yaml-converter -input quiz.yaml -validate
+```
+
 ## ディレクトリ構造
 
 ```
@@ -75,16 +85,22 @@ quiz-yaml-go/
 | 引数 | 必須 | デフォルト値 | 説明 |
 |------|------|-------------|------|
 | `-input` | ✓ | - | 入力するYAMLファイルのパス |
-| `-output` | ✓ | - | 出力ファイルのパス |
+| `-output` | *1 | - | 出力ファイルのパス |
 | `-format` | | `csv` | 出力フォーマット（`csv`, `html`, `markdown`） |
 | `-template` | | - | テンプレートファイルのパス（指定時はformatより優先） |
+| `-validate` | | `false` | YAMLファイルのバリデーションのみ実行（出力は行わない） |
 | `-help` | | `false` | ヘルプメッセージを表示 |
+
+*1: `-validate`フラグ使用時は不要
 
 ### 使用例
 
 ```bash
 # ヘルプを表示
 ./quiz-yaml-converter -help
+
+# YAMLファイルのバリデーション（変換は行わない）
+./quiz-yaml-converter -input quiz.yaml -validate
 
 # 基本的なCSV変換
 ./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.csv

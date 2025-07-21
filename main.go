@@ -32,6 +32,7 @@ func main() {
 		outputFile = flag.String("output", "", "出力ファイルのパス（必須）")
 		format     = flag.String("format", "csv", "出力フォーマット（csv, html, markdown）")
 		template   = flag.String("template", "", "テンプレートファイルのパス（formatに関係なく使用）")
+		validate   = flag.Bool("validate", false, "YAMLファイルのフォーマットをバリデーションのみ実行")
 		help       = flag.Bool("help", false, "ヘルプを表示")
 	)
 
@@ -45,6 +46,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.csv\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -validate\n", filepath.Base(os.Args[0]))
 	}
 
 	// フラグをパース
@@ -63,6 +65,24 @@ func main() {
 		os.Exit(1)
 	}
 
+	// バリデーションのみの場合
+	if *validate {
+		fmt.Printf("🔍 YAMLファイルをバリデーションしています: %s\n", *inputFile)
+		result := quiz_yaml_converter.ValidateYAMLFile(*inputFile)
+
+		if result.IsValid {
+			fmt.Printf("✅ バリデーション成功: %d問のクイズデータが正しく読み込めました\n", result.Items)
+		} else {
+			fmt.Printf("❌ バリデーション失敗: %d個のエラーが見つかりました\n", len(result.Errors))
+			for _, err := range result.Errors {
+				fmt.Fprintf(os.Stderr, "  • %s\n", err)
+			}
+			os.Exit(1)
+		}
+		return
+	}
+
+	// 変換モードの場合は出力ファイルが必須
 	if *outputFile == "" {
 		fmt.Fprintf(os.Stderr, "❌ エラー: 出力ファイルが指定されていません\n\n")
 		flag.Usage()

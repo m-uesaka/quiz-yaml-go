@@ -150,6 +150,115 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 
 	return data, nil
 }
+
+// ValidationResult はバリデーション結果を表す構造体
+type ValidationResult struct {
+	IsValid bool     // バリデーションが成功したかどうか
+	Errors  []string // エラーメッセージのリスト
+	Items   int      // 読み込まれたアイテム数
+}
+
+// ValidateYAMLFile はYAMLファイルの構造と内容をバリデーションする
+func ValidateYAMLFile(yamlFilePath string) ValidationResult {
+	result := ValidationResult{
+		IsValid: true,
+		Errors:  []string{},
+		Items:   0,
+	}
+
+	// ファイルの存在確認
+	if _, err := os.Stat(yamlFilePath); os.IsNotExist(err) {
+		result.IsValid = false
+		result.Errors = append(result.Errors, fmt.Sprintf("ファイルが存在しません: %s", yamlFilePath))
+		return result
+	}
+
+	// YAMLデータの読み込み
+	data, err := LoadYAMLData(yamlFilePath)
+	if err != nil {
+		result.IsValid = false
+		result.Errors = append(result.Errors, fmt.Sprintf("YAMLファイルの読み込みエラー: %v", err))
+		return result
+	}
+
+	result.Items = len(data)
+
+	// 各アイテムのバリデーション
+	for i, item := range data {
+		itemErrors := validateQuizItem(item, i+1)
+		if len(itemErrors) > 0 {
+			result.IsValid = false
+			result.Errors = append(result.Errors, itemErrors...)
+		}
+	}
+
+	// 配列が空でないことを確認
+	if len(data) == 0 {
+		result.IsValid = false
+		result.Errors = append(result.Errors, "YAMLファイルにクイズデータが含まれていません")
+	}
+
+	return result
+}
+
+// validateQuizItem は個々のクイズアイテムをバリデーションする
+func validateQuizItem(item QuizItem, index int) []string {
+	var errors []string
+	prefix := fmt.Sprintf("問題 %d: ", index)
+
+	// 必須フィールドのチェック
+	if strings.TrimSpace(item.Question) == "" {
+		errors = append(errors, prefix+"問題文 (question) が空です")
+	}
+
+	if strings.TrimSpace(item.Answer) == "" {
+		errors = append(errors, prefix+"答え (answer) が空です")
+	}
+
+	// criteriaフィールドのバリデーション
+	if item.Criteria != nil {
+		if ok, exists := item.Criteria["ok"]; exists {
+			for j, answer := range ok {
+				if strings.TrimSpace(answer) == "" {
+					errors = append(errors, fmt.Sprintf("%scriteria.ok[%d] が空です", prefix, j))
+				}
+			}
+		}
+
+		if ng, exists := item.Criteria["ng"]; exists {
+			for j, answer := range ng {
+				if strings.TrimSpace(answer) == "" {
+					errors = append(errors, fmt.Sprintf("%scriteria.ng[%d] が空です", prefix, j))
+				}
+			}
+		}
+
+		if repeat, exists := item.Criteria["repeat"]; exists {
+			for j, answer := range repeat {
+				if strings.TrimSpace(answer) == "" {
+					errors = append(errors, fmt.Sprintf("%scriteria.repeat[%d] が空です", prefix, j))
+				}
+			}
+		}
+
+		// 不正なcriteriaキーのチェック
+		validKeys := map[string]bool{"ok": true, "ng": true, "repeat": true}
+		for key := range item.Criteria {
+			if !validKeys[key] {
+				errors = append(errors, fmt.Sprintf("%s不正なcriteriaキー: '%s' (使用可能: ok, ng, repeat)", prefix, key))
+			}
+		}
+	}
+
+	// commentsフィールドのバリデーション
+	for j, comment := range item.Comments {
+		if strings.TrimSpace(comment) == "" {
+			errors = append(errors, fmt.Sprintf("%scomments[%d] が空です", prefix, j))
+		}
+	}
+
+	return errors
+}
 // 問題データとテンプレートファイルから出力ファイルを生成する．
 // テンプレートはGoのtext/templateパッケージを使用し，日本語クイズフォーマット用のカスタム関数を提供する．
 func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string) error {
