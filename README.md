@@ -105,7 +105,7 @@ quiz-yaml-go/
 # 基本的なCSV変換
 ./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.csv
 
-# HTML形式で出力
+# HTML形式で出力（formatオプションを指定）
 ./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.html -format html
 
 # カスタムテンプレートを使用

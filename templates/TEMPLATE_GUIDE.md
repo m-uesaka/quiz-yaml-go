@@ -45,10 +45,10 @@ type QuizItem struct {
 #### Markdownテンプレート
 
 ```markdown
-# クイズ問題集
+# 自作問題
 
 {{range $index, $item := .Items}}
-## 問題{{add $index 1}}
+## Q{{add $index 1}}
 
 **Q**: {{.Question}}
 **A**: {{.Answer}}
@@ -71,10 +71,10 @@ type QuizItem struct {
 <html>
 <head><title>クイズ</title></head>
 <body>
-    <h1>クイズ問題集</h1>
+    <h1>自作問題</h1>
     {{range $index, $item := .Items}}
     <div class="quiz-item">
-        <h3>問題{{add $index 1}}</h3>
+        <h3>Q{{add $index 1}}</h3>
         <p><strong>問題:</strong> {{.Question}}</p>
         <p><strong>答え:</strong> {{.Answer}}</p>
         {{if .Comments}}
