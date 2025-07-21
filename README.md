@@ -99,3 +99,7 @@ quiz-yaml-go/
 ## テンプレートファイルの書き方
 
 カスタムテンプレートファイルの作成方法については、[templates/TEMPLATE_GUIDE.md](templates/TEMPLATE_GUIDE.md)を参照してください。
+
+## YAMLファイルの作成方法
+
+入力用のYAMLファイルの作成方法については、[yaml/YAML_GUIDE.md](yaml/YAML_GUIDE.md)を参照してください。

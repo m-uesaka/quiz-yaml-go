@@ -1,0 +1,54 @@
+{
+    "$schema": "http://json-schema.org/schema#",
+    "items": {
+        "type": "object",
+        "properties": {
+            "spell": {
+                "type": "string"
+            },
+            "criteria": {
+                "required": [
+                    "ok"
+                ],
+                "properties": {
+                    "repeat": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "ok": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "ng": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "type": "object"
+            },
+            "question": {
+                "type": "string"
+            },
+            "answer": {
+                "type": "string"
+            },
+            "comments": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            }
+        },
+        "required": [
+            "answer",
+            "question"
+        ]
+    },
+    "type": "array"
+}
