@@ -25,6 +25,7 @@ type QuizItem struct {
 	Question string              `yaml:"question"`           // 問題文
 	Answer   string              `yaml:"answer"`             // 答え
 	Spell    string              `yaml:"spell"`              // 原語表記（英語表記）
+	Tags     []string            `yaml:"tags,omitempty"`     // タグ
 	Comments []string            `yaml:"comments,omitempty"` // コメント
 	Criteria map[string][]string `yaml:"criteria,omitempty"` // 判定基準（ok/ng/repeat）
 }
@@ -257,6 +258,13 @@ func validateQuizItem(item QuizItem, index int) []string {
 		}
 	}
 
+	// tagsフィールドのバリデーション
+	for j, tag := range item.Tags {
+		if strings.TrimSpace(tag) == "" {
+			errors = append(errors, fmt.Sprintf("%stags[%d] が空です", prefix, j))
+		}
+	}
+
 	return errors
 }
 // 問題データとテンプレートファイルから出力ファイルを生成する．
@@ -350,6 +358,28 @@ func ConvertYAMLToCSV(yamlFilePath, csvFilePath string) error {
 	}
 
 	return nil
+}
+
+// QuizItemのスライスをYAMLファイルとして書き出す．
+func SaveYAMLData(items []QuizItem, yamlFilePath string) error {
+	out, err := yaml.Marshal(items)
+	if err != nil {
+		return fmt.Errorf("failed to marshal YAML: %w", err)
+	}
+	if err := os.WriteFile(yamlFilePath, out, 0o644); err != nil {
+		return fmt.Errorf("failed to write YAML file: %w", err)
+	}
+	return nil
+}
+
+// ConvertMarkdownDirToYAML はMarkdownディレクトリを1つのYAMLファイルに集約する
+// エントリーポイント．recursiveがtrueの場合はサブディレクトリも再帰的に辿る．
+func ConvertMarkdownDirToYAML(mdDirPath, yamlFilePath string, recursive bool) error {
+	items, err := AggregateMarkdownDir(mdDirPath, recursive)
+	if err != nil {
+		return err
+	}
+	return SaveYAMLData(items, yamlFilePath)
 }
 
 // 全体の変換処理を行うエントリーポイント．

@@ -28,12 +28,14 @@ import (
 func main() {
 	// フラグの定義
 	var (
-		inputFile  = flag.String("input", "", "入力するYAMLファイルのパス（必須）")
-		outputFile = flag.String("output", "", "出力ファイルのパス（必須）")
-		format     = flag.String("format", "csv", "出力フォーマット（csv, html, markdown）")
-		template   = flag.String("template", "", "テンプレートファイルのパス（formatに関係なく使用）")
-		validate   = flag.Bool("validate", false, "YAMLファイルのフォーマットをバリデーションのみ実行")
-		help       = flag.Bool("help", false, "ヘルプを表示")
+		inputFile   = flag.String("input", "", "入力するYAMLファイルのパス（-markdown-dir未指定時は必須）")
+		markdownDir = flag.String("markdown-dir", "", "集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる）")
+		recursive   = flag.Bool("recursive", false, "-markdown-dir指定時，サブディレクトリも再帰的に辿るかどうか")
+		outputFile  = flag.String("output", "", "出力ファイルのパス（必須）")
+		format      = flag.String("format", "csv", "出力フォーマット（csv, html, markdown）")
+		template    = flag.String("template", "", "テンプレートファイルのパス（formatに関係なく使用）")
+		validate    = flag.Bool("validate", false, "YAMLファイルのフォーマットをバリデーションのみ実行")
+		help        = flag.Bool("help", false, "ヘルプを表示")
 	)
 
 	// ヘルプメッセージをカスタマイズ
@@ -47,6 +49,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -validate\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "  %s -markdown-dir path/to/quiz -output quiz.yaml\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "  %s -markdown-dir path/to/quiz -recursive -output quiz.yaml\n", filepath.Base(os.Args[0]))
 	}
 
 	// フラグをパース
@@ -55,6 +59,27 @@ func main() {
 	// ヘルプフラグがセットされている場合
 	if *help {
 		flag.Usage()
+		return
+	}
+
+	// Markdown→YAML集約モードの場合
+	if *markdownDir != "" {
+		if *inputFile != "" {
+			fmt.Fprintf(os.Stderr, "❌ エラー: -markdown-dirと-inputは同時に指定できません\n\n")
+			flag.Usage()
+			os.Exit(1)
+		}
+		if *outputFile == "" {
+			fmt.Fprintf(os.Stderr, "❌ エラー: 出力ファイルが指定されていません\n\n")
+			flag.Usage()
+			os.Exit(1)
+		}
+		err := quiz_yaml_converter.ConvertMarkdownDirToYAML(*markdownDir, *outputFile, *recursive)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("✅ Markdown集約完了: %s → %s\n", *markdownDir, *outputFile)
 		return
 	}
 

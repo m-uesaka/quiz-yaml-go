@@ -23,6 +23,12 @@ go run main.go -input quiz.yaml -output quiz.md -format markdown
 
 # カスタムテンプレートを使用
 go run main.go -input quiz.yaml -output custom.html -template my_template.html
+
+# Markdownディレクトリを1つのYAMLファイルに集約
+go run main.go -markdown-dir path/to/quiz -output quiz.yaml
+
+# サブディレクトリも再帰的に辿って集約
+go run main.go -markdown-dir path/to/quiz -recursive -output quiz.yaml
 ```
 
 ### ビルドして使う方法
@@ -73,7 +79,9 @@ quiz-yaml-go/
 ├── .gitignore                 # Git除外設定
 ├── quiz_yaml_converter/       # クイズ変換ライブラリパッケージ
 │   ├── converter.go           # メイン変換ロジック
-│   └── converter_test.go      # テストファイル
+│   ├── converter_test.go      # テストファイル
+│   ├── markdown_parser.go     # Markdown→QuizItem変換ロジック
+│   └── markdown_parser_test.go # テストファイル
 └── templates/                 # テンプレートファイル用ディレクトリ
     ├── TEMPLATE_GUIDE.md      # テンプレート作成ガイド
     ├── quiz_template.html     # HTML出力用テンプレート
@@ -84,7 +92,9 @@ quiz-yaml-go/
 
 | 引数 | 必須 | デフォルト値 | 説明 |
 |------|------|-------------|------|
-| `-input` | ✓ | - | 入力するYAMLファイルのパス |
+| `-input` | ✓*2 | - | 入力するYAMLファイルのパス |
+| `-markdown-dir` | | - | 集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる．`-input`とは同時指定不可） |
+| `-recursive` | | `false` | `-markdown-dir`指定時，サブディレクトリも再帰的に辿るかどうか |
 | `-output` | *1 | - | 出力ファイルのパス |
 | `-format` | | `csv` | 出力フォーマット（`csv`, `html`, `markdown`） |
 | `-template` | | - | テンプレートファイルのパス（指定時はformatより優先） |
@@ -92,6 +102,7 @@ quiz-yaml-go/
 | `-help` | | `false` | ヘルプメッセージを表示 |
 
 *1: `-validate`フラグ使用時は不要
+*2: `-markdown-dir`指定時は不要（むしろ同時指定はエラー）
 
 ### 使用例
 
@@ -110,6 +121,12 @@ quiz-yaml-go/
 
 # カスタムテンプレートを使用
 ./quiz-yaml-converter -input data/quiz.yaml -output output/custom.txt -template templates/custom.tmpl
+
+# Markdownディレクトリを1つのYAMLファイルに集約
+./quiz-yaml-converter -markdown-dir data/quiz -output output/quiz.yaml
+
+# サブディレクトリも再帰的に辿って集約
+./quiz-yaml-converter -markdown-dir data/quiz -recursive -output output/quiz.yaml
 ```
 
 ## テンプレートファイルの書き方
