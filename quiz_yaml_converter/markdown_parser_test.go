@@ -1,11 +1,15 @@
 package quiz_yaml_converter
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func writeTempMarkdown(t *testing.T, dir, name, content string) string {
@@ -266,15 +270,193 @@ date: 2026-01-01
 	}
 }
 
+// markdownFixture はAnswerだけが異なる最小限の1問分のMarkdownを返す．
+func markdownFixture(answer string) string {
+	return "---\ntitle: 自作問題-" + answer + "\ndate: 2026-01-01\n---\n" +
+		"## Question\n\n問題文\n\n## Answer\n\n" + answer + "\n\n## Spell\n\n## Criteria\n\n### OK\n\n### NG\n\n### Close\n\n## Comment\n"
+}
+
+// CRLF改行のファイルでも，LF改行のファイルと同じ結果になることを確認する．
+func TestParseMarkdownFile_CRLFLineEndings(t *testing.T) {
+	// Arrange
+	lf := `---
+title: 自作問題-CRLF
+date: 2026-01-01
+tags:
+    - タグ1
+---
+## Question
+
+問題文1行目
+問題文2行目
+
+## Answer
+
+答え
+
+## Spell
+
+Answer
+
+## Criteria
+
+### OK
+
+- 別解1
+
+### NG
+
+- 誤答1
+
+### Close
+
+- もう一度1
+
+## Comment
+
+コメント1行目
+コメント2行目
+
+別の段落
+`
+	dir := t.TempDir()
+	crlfPath := writeTempMarkdown(t, dir, "crlf.md", strings.ReplaceAll(lf, "\n", "\r\n"))
+	want := QuizItem{
+		Question: "問題文1行目\n問題文2行目",
+		Answer:   "答え",
+		Spell:    "Answer",
+		Tags:     []string{"タグ1"},
+		Comments: []string{"コメント1行目\nコメント2行目", "別の段落"},
+		Criteria: &Criteria{OK: []string{"別解1"}, NG: []string{"誤答1"}, Repeat: []string{"もう一度1"}},
+	}
+
+	// Act
+	got, err := ParseMarkdownFile(crlfPath)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ParseMarkdownFile(CRLF) = %+v, want %+v", got, want)
+	}
+}
+
+// QuizItemに対応しないfrontmatterのキー（title / date など）は無視され，
+// 先頭にUTF-8のBOMが付いたファイル（CRLF改行を含む）でも，BOMなしのファイルと同じ結果になることを確認する．
+func TestParseMarkdownFile_UTF8BOM(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "LF", content: "\ufeff" + markdownFixture("答え")},
+		{name: "CRLF", content: "\ufeff" + strings.ReplaceAll(markdownFixture("答え"), "\n", "\r\n")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			want, err := ParseMarkdownFile(writeTempMarkdown(t, dir, "plain.md", markdownFixture("答え")))
+			if err != nil {
+				t.Fatalf("failed to parse file without BOM: %v", err)
+			}
+			path := writeTempMarkdown(t, dir, "bom.md", tt.content)
+
+			// Act
+			got, err := ParseMarkdownFile(path)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("ParseMarkdownFile() = %+v, want %+v", got, want)
+			}
+		})
+	}
+}
+
+// tagsだけが読み込まれることを確認する．
+func TestParseMarkdownFile_IgnoresUnusedFrontmatterKeys(t *testing.T) {
+	// Arrange
+	content := "---\ntitle: 自作問題-テスト\ndate: 2026-01-01\nauthor: 誰か\ntags:\n    - タグ1\n---\n" +
+		"## Question\n\n問題文\n\n## Answer\n\n答え\n"
+	path := writeTempMarkdown(t, t.TempDir(), "test.md", content)
+
+	// Act
+	item, err := ParseMarkdownFile(path)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reflect.DeepEqual(item.Tags, []string{"タグ1"}) {
+		t.Errorf("Tags = %v, want [タグ1]", item.Tags)
+	}
+	if item.Answer != "答え" {
+		t.Errorf("Answer = %q, want %q", item.Answer, "答え")
+	}
+}
+
+// 拡張子の判定は，再帰の有無にかかわらず大文字・小文字を区別せず，
+// 拡張子が ".md" のディレクトリと，ディレクトリを指すシンボリックリンクは対象外になることを確認する．
+func TestCollectMarkdownFiles_ExtensionMatching(t *testing.T) {
+	tests := []struct {
+		name      string
+		recursive bool
+	}{
+		{name: "再帰しない", recursive: false},
+		{name: "再帰する", recursive: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			for _, name := range []string{"a.md", "B.MD", "c.Md", "d.txt", "e.markdown"} {
+				writeTempMarkdown(t, dir, name, "")
+			}
+			if err := os.Mkdir(filepath.Join(dir, "x.md"), 0o755); err != nil {
+				t.Fatalf("failed to create directory: %v", err)
+			}
+			// ディレクトリを指すシンボリックリンクは対象外，ファイルを指すシンボリックリンクは対象にする．
+			// リンク先はdirの外に置き，再帰する場合にリンク先が別に数えられないようにする．
+			target := t.TempDir()
+			targetFile := writeTempMarkdown(t, target, "target.md", "")
+			if err := os.Symlink(target, filepath.Join(dir, "link-to-dir.md")); err != nil {
+				t.Skipf("symlinks are not supported: %v", err)
+			}
+			if err := os.Symlink(targetFile, filepath.Join(dir, "link-to-file.md")); err != nil {
+				t.Skipf("symlinks are not supported: %v", err)
+			}
+			want := []string{
+				filepath.Join(dir, "B.MD"),
+				filepath.Join(dir, "a.md"),
+				filepath.Join(dir, "c.Md"),
+				filepath.Join(dir, "link-to-file.md"),
+			}
+
+			// Act
+			got, err := collectMarkdownFiles(dir, tt.recursive)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			sort.Strings(got)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("collectMarkdownFiles(recursive=%v) = %v, want %v", tt.recursive, got, want)
+			}
+		})
+	}
+}
+
 func TestAggregateMarkdownDir_SortedAndAggregated(t *testing.T) {
 	dir := t.TempDir()
-	fixture := func(answer string) string {
-		return "---\ntitle: 自作問題-" + answer + "\ndate: 2026-01-01\n---\n" +
-			"## Question\n\n問題文\n\n## Answer\n\n" + answer + "\n\n## Spell\n\n## Criteria\n\n### OK\n\n### NG\n\n### Close\n\n## Comment\n"
-	}
-	writeTempMarkdown(t, dir, "c.md", fixture("C"))
-	writeTempMarkdown(t, dir, "a.md", fixture("A"))
-	writeTempMarkdown(t, dir, "b.md", fixture("B"))
+	writeTempMarkdown(t, dir, "c.md", markdownFixture("C"))
+	writeTempMarkdown(t, dir, "a.md", markdownFixture("A"))
+	writeTempMarkdown(t, dir, "b.md", markdownFixture("B"))
 
 	items, err := AggregateMarkdownDir(dir, false)
 	if err != nil {
@@ -297,12 +479,8 @@ func TestAggregateMarkdownDir_Recursive(t *testing.T) {
 	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatalf("failed to create subdirectory: %v", err)
 	}
-	fixture := func(answer string) string {
-		return "---\ntitle: 自作問題-" + answer + "\ndate: 2026-01-01\n---\n" +
-			"## Question\n\n問題文\n\n## Answer\n\n" + answer + "\n\n## Spell\n\n## Criteria\n\n### OK\n\n### NG\n\n### Close\n\n## Comment\n"
-	}
-	writeTempMarkdown(t, dir, "top.md", fixture("TOP"))
-	writeTempMarkdown(t, sub, "nested.md", fixture("NESTED"))
+	writeTempMarkdown(t, dir, "top.md", markdownFixture("TOP"))
+	writeTempMarkdown(t, sub, "nested.md", markdownFixture("NESTED"))
 
 	nonRecursive, err := AggregateMarkdownDir(dir, false)
 	if err != nil {
@@ -323,9 +501,7 @@ func TestAggregateMarkdownDir_Recursive(t *testing.T) {
 
 func TestAggregateMarkdownDir_PartialFailureReportsFileName(t *testing.T) {
 	dir := t.TempDir()
-	goodContent := "---\ntitle: 自作問題-OK\ndate: 2026-01-01\n---\n" +
-		"## Question\n\n問題文\n\n## Answer\n\nOK\n\n## Spell\n\n## Criteria\n\n### OK\n\n### NG\n\n### Close\n\n## Comment\n"
-	writeTempMarkdown(t, dir, "good.md", goodContent)
+	writeTempMarkdown(t, dir, "good.md", markdownFixture("OK"))
 	brokenPath := writeTempMarkdown(t, dir, "broken.md", "no frontmatter here")
 
 	items, err := AggregateMarkdownDir(dir, false)
@@ -337,6 +513,37 @@ func TestAggregateMarkdownDir_PartialFailureReportsFileName(t *testing.T) {
 	}
 	if len(items) != 1 {
 		t.Errorf("len(items) = %d, want 1 (only the successfully parsed file)", len(items))
+	}
+}
+
+// 複数のファイルの変換に失敗した場合，各ファイルのエラーが集約され，
+// errors.As で個々のエラーを取り出せることを確認する．
+func TestAggregateMarkdownDir_MultipleFailuresAreJoined(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	writeTempMarkdown(t, dir, "good.md", markdownFixture("OK"))
+	noFrontmatterPath := writeTempMarkdown(t, dir, "no_frontmatter.md", "no frontmatter here")
+	// tagsに文字列のリストではなくマッピングを指定し，yaml.v3の *yaml.TypeError を発生させる
+	badTagsPath := writeTempMarkdown(t, dir, "bad_tags.md", "---\ntags:\n    key: value\n---\n## Answer\n\n答え\n")
+
+	// Act
+	items, err := AggregateMarkdownDir(dir, false)
+
+	// Assert
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+	if len(items) != 1 {
+		t.Errorf("len(items) = %d, want 1 (only the successfully parsed file)", len(items))
+	}
+	for _, p := range []string{noFrontmatterPath, badTagsPath} {
+		if !strings.Contains(err.Error(), p) {
+			t.Errorf("error message %q does not contain file path %q", err.Error(), p)
+		}
+	}
+	var typeErr *yaml.TypeError
+	if !errors.As(err, &typeErr) {
+		t.Errorf("errors.As(err, *yaml.TypeError) = false, want true: %v", err)
 	}
 }
 
