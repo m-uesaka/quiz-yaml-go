@@ -46,38 +46,38 @@ func TestAccessorsWithQuoteAllMatchFormatCriteria(t *testing.T) {
 
 	criteriaCases := []struct {
 		name     string
-		criteria map[string][]string
+		criteria *Criteria
 	}{
 		{name: "nil criteria", criteria: nil},
-		{name: "empty criteria", criteria: map[string][]string{}},
-		{name: "only ok", criteria: map[string][]string{"ok": {"ok1", "ok2"}}},
-		{name: "only ng", criteria: map[string][]string{"ng": {"ng1"}}},
-		{name: "only repeat", criteria: map[string][]string{"repeat": {"rep1"}}},
-		{name: "ok and ng", criteria: map[string][]string{"ok": {"ok1"}, "ng": {"ng1", "ng2"}}},
-		{name: "ok and repeat", criteria: map[string][]string{"ok": {"ok1"}, "repeat": {"rep1"}}},
-		{name: "ng and repeat", criteria: map[string][]string{"ng": {"ng1"}, "repeat": {"rep1"}}},
+		{name: "empty criteria", criteria: &Criteria{}},
+		{name: "only ok", criteria: &Criteria{OK: []string{"ok1", "ok2"}}},
+		{name: "only ng", criteria: &Criteria{NG: []string{"ng1"}}},
+		{name: "only repeat", criteria: &Criteria{Repeat: []string{"rep1"}}},
+		{name: "ok and ng", criteria: &Criteria{OK: []string{"ok1"}, NG: []string{"ng1", "ng2"}}},
+		{name: "ok and repeat", criteria: &Criteria{OK: []string{"ok1"}, Repeat: []string{"rep1"}}},
+		{name: "ng and repeat", criteria: &Criteria{NG: []string{"ng1"}, Repeat: []string{"rep1"}}},
 		{
 			name: "all sections",
-			criteria: map[string][]string{
-				"ok":     {"ok1", "ok2"},
-				"ng":     {"ng1"},
-				"repeat": {"rep1"},
+			criteria: &Criteria{
+				OK:     []string{"ok1", "ok2"},
+				NG:     []string{"ng1"},
+				Repeat: []string{"rep1"},
 			},
 		},
-		{name: "empty lists are skipped", criteria: map[string][]string{"ok": {}, "ng": {"ng1"}, "repeat": {}}},
+		{name: "empty lists are skipped", criteria: &Criteria{OK: []string{}, NG: []string{"ng1"}, Repeat: []string{}}},
 		{
 			name: "already quoted items",
-			criteria: map[string][]string{
-				"ok":     {"「古典絵画館」", "古典美術館", "「アルテ・マイスター美術館」（おまけ）"},
-				"repeat": {"えんががわ（読みが違うのでもう一度）"},
+			criteria: &Criteria{
+				OK:     []string{"「古典絵画館」", "古典美術館", "「アルテ・マイスター美術館」（おまけ）"},
+				Repeat: []string{"えんががわ（読みが違うのでもう一度）"},
 			},
 		},
 		{
 			name: "HTML special characters",
-			criteria: map[string][]string{
-				"ok":     {"A&B", "<b>太字</b>"},
-				"ng":     {`"引用"`, "it's"},
-				"repeat": {"1+1>1"},
+			criteria: &Criteria{
+				OK:     []string{"A&B", "<b>太字</b>"},
+				NG:     []string{`"引用"`, "it's"},
+				Repeat: []string{"1+1>1"},
 			},
 		},
 	}
@@ -100,7 +100,7 @@ func TestAccessorsWithQuoteAllMatchFormatCriteria(t *testing.T) {
 				// Act
 				got, err := executeTemplate(t, accessorTemplate, mode.htmlMode, items)
 				want, wantErr := executeTemplate(t, formatCriteriaTemplate, mode.htmlMode, items)
-				expected := mode.escape(t, FormatCriteria(tt.criteria))
+				expected := mode.escape(t, tt.criteria.Format())
 
 				// Assert
 				if err != nil || wantErr != nil {
@@ -132,22 +132,22 @@ func htmlEscapeLikeTemplate(t *testing.T, s string) string {
 func TestQuoteAllSuffixAndNilListCombinations(t *testing.T) {
 	tests := []struct {
 		name     string
-		criteria map[string][]string
+		criteria *Criteria
 		template string
 		expected string
 	}{
 		{name: "nil criteria with empty suffix", criteria: nil, template: `{{quoteAll .NG ""}}`, expected: ""},
 		{name: "nil criteria with suffix", criteria: nil, template: `{{quoteAll .NG "は誤答"}}`, expected: ""},
-		{name: "missing key with empty suffix", criteria: map[string][]string{"ok": {"ok1"}}, template: `{{quoteAll .NG ""}}`, expected: ""},
-		{name: "missing key with suffix", criteria: map[string][]string{"ok": {"ok1"}}, template: `{{quoteAll .Repeat "はもう一度"}}`, expected: ""},
-		{name: "empty list with empty suffix", criteria: map[string][]string{"ng": {}}, template: `{{quoteAll .NG ""}}`, expected: ""},
-		{name: "empty list with suffix", criteria: map[string][]string{"ng": {}}, template: `{{quoteAll .NG "は誤答"}}`, expected: ""},
+		{name: "missing key with empty suffix", criteria: &Criteria{OK: []string{"ok1"}}, template: `{{quoteAll .NG ""}}`, expected: ""},
+		{name: "missing key with suffix", criteria: &Criteria{OK: []string{"ok1"}}, template: `{{quoteAll .Repeat "はもう一度"}}`, expected: ""},
+		{name: "empty list with empty suffix", criteria: &Criteria{NG: []string{}}, template: `{{quoteAll .NG ""}}`, expected: ""},
+		{name: "empty list with suffix", criteria: &Criteria{NG: []string{}}, template: `{{quoteAll .NG "は誤答"}}`, expected: ""},
 		{name: "literal nil with empty suffix", criteria: nil, template: `{{quoteAll nil ""}}`, expected: ""},
 		{name: "literal nil with suffix", criteria: nil, template: `{{quoteAll nil "は誤答"}}`, expected: ""},
-		{name: "single item with empty suffix", criteria: map[string][]string{"ng": {"ng1"}}, template: `{{quoteAll .NG ""}}`, expected: "「ng1」"},
-		{name: "single item with suffix", criteria: map[string][]string{"ng": {"ng1"}}, template: `{{quoteAll .NG "は誤答"}}`, expected: "「ng1」は誤答"},
-		{name: "multiple items with empty suffix", criteria: map[string][]string{"ok": {"ok1", "「ok2」"}}, template: `{{quoteAll .OK ""}}`, expected: "「ok1」「ok2」"},
-		{name: "multiple items with suffix", criteria: map[string][]string{"repeat": {"rep1", "rep2"}}, template: `{{quoteAll .Repeat "はもう一度"}}`, expected: "「rep1」「rep2」はもう一度"},
+		{name: "single item with empty suffix", criteria: &Criteria{NG: []string{"ng1"}}, template: `{{quoteAll .NG ""}}`, expected: "「ng1」"},
+		{name: "single item with suffix", criteria: &Criteria{NG: []string{"ng1"}}, template: `{{quoteAll .NG "は誤答"}}`, expected: "「ng1」は誤答"},
+		{name: "multiple items with empty suffix", criteria: &Criteria{OK: []string{"ok1", "「ok2」"}}, template: `{{quoteAll .OK ""}}`, expected: "「ok1」「ok2」"},
+		{name: "multiple items with suffix", criteria: &Criteria{Repeat: []string{"rep1", "rep2"}}, template: `{{quoteAll .Repeat "はもう一度"}}`, expected: "「rep1」「rep2」はもう一度"},
 	}
 
 	for _, tt := range tests {
@@ -179,7 +179,7 @@ func TestQuoteAllInvalidArguments(t *testing.T) {
 		wantErr  string
 	}{
 		{name: "string instead of list", template: `{{range .Items}}{{quoteAll .Answer ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got string"},
-		{name: "map instead of list", template: `{{range .Items}}{{quoteAll .Criteria ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got map[string][]string"},
+		{name: "criteria instead of list", template: `{{range .Items}}{{quoteAll .Criteria ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got *quiz_yaml_converter.Criteria"},
 		{name: "missing suffix", template: `{{range .Items}}{{quoteAll .OK}}{{end}}`, wantErr: "wrong number of args for quoteAll: want 2 got 1"},
 		{name: "non-string suffix", template: `{{range .Items}}{{quoteAll .OK 1}}{{end}}`, wantErr: "expected string; found 1"},
 		{name: "too many arguments", template: `{{range .Items}}{{quoteAll .OK "" ""}}{{end}}`, wantErr: "wrong number of args for quoteAll: want 2 got 3"},
@@ -188,7 +188,7 @@ func TestQuoteAllInvalidArguments(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			items := []QuizItem{{Question: "q", Answer: "a", Criteria: map[string][]string{"ok": {"ok1"}}}}
+			items := []QuizItem{{Question: "q", Answer: "a", Criteria: &Criteria{OK: []string{"ok1"}}}}
 
 			// Act
 			_, err := executeTemplate(t, tt.template, false, items)
@@ -206,15 +206,15 @@ func TestQuoteAllInvalidArguments(t *testing.T) {
 
 // 個別アクセサが通常の[]stringとして，組み込み関数やテンプレート関数と組み合わせられることを確認する．
 func TestAccessorsWorkWithTemplateFuncs(t *testing.T) {
-	criteria := map[string][]string{
-		"ok":     {"ok1", "ok2", "ok3"},
-		"ng":     {"ng1"},
-		"repeat": {},
+	criteria := &Criteria{
+		OK:     []string{"ok1", "ok2", "ok3"},
+		NG:     []string{"ng1"},
+		Repeat: []string{},
 	}
 
 	tests := []struct {
 		name     string
-		criteria map[string][]string
+		criteria *Criteria
 		template string
 		expected string
 	}{
@@ -235,6 +235,9 @@ func TestAccessorsWorkWithTemplateFuncs(t *testing.T) {
 		{name: "upper on each item", criteria: criteria, template: `{{range .NG}}{{upper .}}{{end}}`, expected: "NG1"},
 		{name: "csvRow with joined list", criteria: criteria, template: `{{csvRow .Question (join .OK ",")}}`, expected: `q,"ok1,ok2,ok3"`},
 		{name: "printf", criteria: criteria, template: `{{printf "%q" .NG}}`, expected: `["ng1"]`},
+		{name: "criteria fields", criteria: criteria, template: `{{join .Criteria.OK ","}}/{{len .Criteria.NG}}/{{len .Criteria.Repeat}}`, expected: "ok1,ok2,ok3/1/0"},
+		{name: "criteria fields guarded by if", criteria: nil, template: `{{if .Criteria}}{{len .Criteria.OK}}{{else}}なし{{end}}`, expected: "なし"},
+		{name: "formatCriteria of nil criteria", criteria: nil, template: `[{{formatCriteria .Criteria}}]`, expected: "[]"},
 	}
 
 	for _, tt := range tests {

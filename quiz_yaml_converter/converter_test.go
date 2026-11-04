@@ -111,66 +111,71 @@ func TestFormatCriteriaSection(t *testing.T) {
 	}
 }
 
-func TestFormatCriteria(t *testing.T) {
+func TestCriteriaFormat(t *testing.T) {
 	tests := []struct {
 		name     string
-		criteria map[string][]string
+		criteria *Criteria
 		expected string
 	}{
 		{
+			name:     "nil criteria",
+			criteria: nil,
+			expected: "",
+		},
+		{
 			name:     "empty criteria",
-			criteria: map[string][]string{},
+			criteria: &Criteria{},
 			expected: "",
 		},
 		{
 			name: "only ok",
-			criteria: map[string][]string{
-				"ok": {"ok1", "ok2"},
+			criteria: &Criteria{
+				OK: []string{"ok1", "ok2"},
 			},
 			expected: "「ok1」「ok2」",
 		},
 		{
 			name: "only ng",
-			criteria: map[string][]string{
-				"ng": {"ng1"},
+			criteria: &Criteria{
+				NG: []string{"ng1"},
 			},
 			expected: "「ng1」は誤答",
 		},
 		{
 			name: "only repeat",
-			criteria: map[string][]string{
-				"repeat": {"rep1"},
+			criteria: &Criteria{
+				Repeat: []string{"rep1"},
 			},
 			expected: "「rep1」はもう一度",
 		},
 		{
 			name: "ok and ng",
-			criteria: map[string][]string{
-				"ok": {"ok1", "ok2"},
-				"ng": {"ng1"},
+			criteria: &Criteria{
+				OK: []string{"ok1", "ok2"},
+				NG: []string{"ng1"},
 			},
 			expected: "「ok1」「ok2」／「ng1」は誤答",
 		},
 		{
 			name: "all sections",
-			criteria: map[string][]string{
-				"ok":     {"ok1", "ok2"},
-				"ng":     {"ng1"},
-				"repeat": {"rep1"},
+			criteria: &Criteria{
+				OK:     []string{"ok1", "ok2"},
+				NG:     []string{"ng1"},
+				Repeat: []string{"rep1"},
 			},
 			expected: "「ok1」「ok2」／「ng1」は誤答／「rep1」はもう一度",
 		},
 		{
 			name: "complex with already quoted items",
-			criteria: map[string][]string{
-				"ok": {"「古典絵画館」", "古典美術館", "「アルテ・マイスター美術館」（おまけ）"},
+			criteria: &Criteria{
+				OK: []string{"「古典絵画館」", "古典美術館", "「アルテ・マイスター美術館」（おまけ）"},
 			},
 			expected: "「古典絵画館」「古典美術館」「アルテ・マイスター美術館」（おまけ）",
 		},
 		{
 			name: "reading correction case",
-			criteria: map[string][]string{
-				"repeat": {"えんががわ（読みが違うのでもう一度）"},
+			criteria: &Criteria{
+				Repeat: []string{"えんががわ（読みが違うのでもう一度）"},
 			},
 			expected: "「えんががわ（読みが違うのでもう一度）」はもう一度",
 		},
@@ -178,9 +183,222 @@ func TestFormatCriteria(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := FormatCriteria(tt.criteria)
+			result := tt.criteria.Format()
 			if result != tt.expected {
-				t.Errorf("FormatCriteria(%v) = %q, want %q", tt.criteria, result, tt.expected)
+				t.Errorf("(%+v).Format() = %q, want %q", tt.criteria, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCriteriaIsEmpty(t *testing.T) {
+	tests := []struct {
+		name     string
+		criteria *Criteria
+		expected bool
+	}{
+		{name: "nil", criteria: nil, expected: true},
+		{name: "zero value", criteria: &Criteria{}, expected: true},
+		{name: "empty lists", criteria: &Criteria{OK: []string{}, NG: []string{}, Repeat: []string{}}, expected: true},
+		{name: "only ok", criteria: &Criteria{OK: []string{"ok1"}}, expected: false},
+		{name: "only ng", criteria: &Criteria{NG: []string{"ng1"}}, expected: false},
+		{name: "only repeat", criteria: &Criteria{Repeat: []string{"rep1"}}, expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			result := tt.criteria.IsEmpty()
+
+			// Assert
+			if result != tt.expected {
+				t.Errorf("(%+v).IsEmpty() = %v, want %v", tt.criteria, result, tt.expected)
+			}
+		})
+	}
+}
+
+// テスト用のYAMLファイルを一時ディレクトリに作成し，そのパスを返す．
+func writeTempYAML(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "quiz.yaml")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write YAML file: %v", err)
+	}
+	return path
+}
+
+func TestLoadYAMLData(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		expected []QuizItem
+	}{
+		{
+			name: "all criteria sections",
+			content: `- question: 問題
+  answer: 答え
+  criteria:
+    ok: [ok1, ok2]
+    ng: [ng1]
+    repeat: [rep1]
+`,
+			expected: []QuizItem{{
+				Question: "問題",
+				Answer:   "答え",
+				Criteria: &Criteria{OK: []string{"ok1", "ok2"}, NG: []string{"ng1"}, Repeat: []string{"rep1"}},
+			}},
+		},
+		{
+			name:     "no criteria",
+			content:  "- question: 問題\n  answer: 答え\n",
+			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
+		},
+		{
+			name:     "null criteria",
+			content:  "- question: 問題\n  answer: 答え\n  criteria:\n",
+			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
+		},
+		{
+			name:     "empty criteria is normalized to nil",
+			content:  "- question: 問題\n  answer: 答え\n  criteria: {}\n",
+			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
+		},
+		{
+			name:     "criteria with only empty lists is normalized to nil",
+			content:  "- question: 問題\n  answer: 答え\n  criteria:\n    ok: []\n",
+			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
+		},
+		{
+			name:     "empty file",
+			content:  "",
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			path := writeTempYAML(t, tt.content)
+
+			// Act
+			data, err := LoadYAMLData(path)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("LoadYAMLData() error = %v", err)
+			}
+			if !reflect.DeepEqual(data, tt.expected) {
+				t.Errorf("LoadYAMLData() = %+v, want %+v", data, tt.expected)
+			}
+		})
+	}
+}
+
+// 定義されていないキーがある場合，読み込みがエラーになることを確認する．
+func TestLoadYAMLDataUnknownFields(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name:    "unknown criteria key",
+			content: "- question: 問題\n  answer: 答え\n  criteria:\n    ok: [ok1]\n    maybe: [m1]\n",
+			wantErr: "line 5: field maybe not found in type quiz_yaml_converter.Criteria",
+		},
+		{
+			name:    "misspelled criteria key",
+			content: "- question: 問題\n  answer: 答え\n  criteria:\n    OK: [ok1]\n",
+			wantErr: "line 4: field OK not found in type quiz_yaml_converter.Criteria",
+		},
+		{
+			name:    "unknown item key",
+			content: "- question: 問題\n  answer: 答え\n  note: メモ\n",
+			wantErr: "line 3: field note not found in type quiz_yaml_converter.QuizItem",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			path := writeTempYAML(t, tt.content)
+
+			// Act
+			_, err := LoadYAMLData(path)
+
+			// Assert
+			if err == nil {
+				t.Fatal("LoadYAMLData() error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("LoadYAMLData() error = %q, want it to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateYAMLFileValid(t *testing.T) {
+	// Arrange
+	path := writeTempYAML(t, `- question: 問題1
+  answer: 答え1
+  criteria:
+    ok: [ok1]
+    ng: [ng1]
+    repeat: [rep1]
+- question: 問題2
+  answer: 答え2
+`)
+
+	// Act
+	result := ValidateYAMLFile(path)
+
+	// Assert
+	if !result.IsValid || len(result.Errors) != 0 {
+		t.Errorf("ValidateYAMLFile() = %+v, want valid", result)
+	}
+	if result.Items != 2 {
+		t.Errorf("Items = %d, want 2", result.Items)
+	}
+}
+
+func TestValidateYAMLFileInvalidCriteria(t *testing.T) {
+	tests := []struct {
+		name       string
+		content    string
+		wantErrors []string
+	}{
+		{
+			name:       "empty criteria entries",
+			content:    "- question: 問題\n  answer: 答え\n  criteria:\n    ok: [ok1, \"\"]\n    ng: [\" \"]\n    repeat: [\"\"]\n",
+			wantErrors: []string{"問題 1: criteria.ok[1] が空です", "問題 1: criteria.ng[0] が空です", "問題 1: criteria.repeat[0] が空です"},
+		},
+		{
+			name:       "unknown criteria key",
+			content:    "- question: 問題\n  answer: 答え\n  criteria:\n    maybe: [m1]\n",
+			wantErrors: []string{"field maybe not found in type quiz_yaml_converter.Criteria"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			path := writeTempYAML(t, tt.content)
+
+			// Act
+			result := ValidateYAMLFile(path)
+
+			// Assert
+			if result.IsValid {
+				t.Fatalf("ValidateYAMLFile() IsValid = true, want false")
+			}
+			if len(result.Errors) != len(tt.wantErrors) {
+				t.Fatalf("Errors = %q, want %d errors", result.Errors, len(tt.wantErrors))
+			}
+			for i, want := range tt.wantErrors {
+				if !strings.Contains(result.Errors[i], want) {
+					t.Errorf("Errors[%d] = %q, want it to contain %q", i, result.Errors[i], want)
+				}
 			}
 		})
 	}
@@ -450,9 +668,9 @@ A: 答え2
 					Answer:   "答え1",
 					Spell:    "読み1",
 					Comments: []string{"コメント1", "コメント2"},
-					Criteria: map[string][]string{
-						"ok": {"正答1", "正答2"},
-						"ng": {"誤答1"},
+					Criteria: &Criteria{
+						OK: []string{"正答1", "正答2"},
+						NG: []string{"誤答1"},
 					},
 				},
 			},
@@ -476,10 +694,10 @@ A: 答え2
 				{
 					Question: "問題1",
 					Answer:   "答え1",
-					Criteria: map[string][]string{
-						"ok":     {"正答1", "正答2"},
-						"ng":     {"誤答1"},
-						"repeat": {"もう一度1"},
+					Criteria: &Criteria{
+						OK:     []string{"正答1", "正答2"},
+						NG:     []string{"誤答1"},
+						Repeat: []string{"もう一度1"},
 					},
 				},
 			},
@@ -574,7 +792,7 @@ A: 答え2
 func TestConvertToTemplateEscapesHTMLOnly(t *testing.T) {
 	data := []QuizItem{{
 		Question: `<script>alert("x")</script> &`,
-		Criteria: map[string][]string{"ok": {"A&B <b>"}},
+		Criteria: &Criteria{OK: []string{"A&B <b>"}},
 	}}
 	templateContent := `{{range .Items}}<p>{{.Question}}</p><p>{{formatCriteria .Criteria}}</p>{{end}}`
 	escaped := `<p>&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; &amp;</p><p>「A&amp;B &lt;b&gt;」</p>`
@@ -693,7 +911,7 @@ func TestBuiltinMarkdownTemplateEscapesHTML(t *testing.T) {
 		Question: `<img src=x onerror=alert(1)>`,
 		Answer:   "<b>答え</b>",
 		Comments: []string{"<i>c</i>"},
-		Criteria: map[string][]string{"ok": {"<u>別解</u>"}},
+		Criteria: &Criteria{OK: []string{"<u>別解</u>"}},
 	}}
 
 	if err := ConvertToTemplate(data, filepath.Join("..", "templates", "quiz_template.md"), outputFile); err != nil {
@@ -720,17 +938,17 @@ func TestBuiltinMarkdownTemplateEscapesHTML(t *testing.T) {
 func TestQuizItemCriteriaAccessors(t *testing.T) {
 	tests := []struct {
 		name           string
-		criteria       map[string][]string
+		criteria       *Criteria
 		expectedOK     []string
 		expectedNG     []string
 		expectedRepeat []string
 	}{
 		{
 			name: "all keys present",
-			criteria: map[string][]string{
-				"ok":     {"ok1", "ok2"},
-				"ng":     {"ng1"},
-				"repeat": {"rep1"},
+			criteria: &Criteria{
+				OK:     []string{"ok1", "ok2"},
+				NG:     []string{"ng1"},
+				Repeat: []string{"rep1"},
 			},
 			expectedOK:     []string{"ok1", "ok2"},
 			expectedNG:     []string{"ng1"},
@@ -738,7 +956,7 @@ func TestQuizItemCriteriaAccessors(t *testing.T) {
 		},
 		{
 			name:       "only ok",
-			criteria:   map[string][]string{"ok": {"ok1"}},
+			criteria:   &Criteria{OK: []string{"ok1"}},
 			expectedOK: []string{"ok1"},
 		},
 		{
@@ -847,15 +1065,15 @@ func BenchmarkAddQuotesIfNeeded(b *testing.B) {
 }
 
 func BenchmarkFormatCriteria(b *testing.B) {
-	criteria := map[string][]string{
-		"ok":     {"ok1", "ok2", "ok3"},
-		"ng":     {"ng1", "ng2"},
-		"repeat": {"rep1"},
+	criteria := &Criteria{
+		OK:     []string{"ok1", "ok2", "ok3"},
+		NG:     []string{"ng1", "ng2"},
+		Repeat: []string{"rep1"},
 	}
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		FormatCriteria(criteria)
+		criteria.Format()
 	}
 }
 

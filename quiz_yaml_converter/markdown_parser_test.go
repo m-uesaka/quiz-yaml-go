@@ -67,14 +67,12 @@ Hayakawa Pocket Mystery
 	if len(item.Tags) != 1 || item.Tags[0] != "ガツオ" {
 		t.Errorf("Tags = %v", item.Tags)
 	}
-	if got := item.Criteria["ok"]; len(got) != 1 || got[0] != "「ハヤカワ・ミステリ」" {
-		t.Errorf("Criteria.ok = %v", got)
+	wantCriteria := &Criteria{
+		OK: []string{"「ハヤカワ・ミステリ」"},
+		NG: []string{"「ハヤカワ・ミステリ文庫」（別レーベル）"},
 	}
-	if got := item.Criteria["ng"]; len(got) != 1 || got[0] != "「ハヤカワ・ミステリ文庫」（別レーベル）" {
-		t.Errorf("Criteria.ng = %v", got)
-	}
-	if _, exists := item.Criteria["repeat"]; exists {
-		t.Errorf("Criteria.repeat should be absent when ### Close is empty")
+	if !reflect.DeepEqual(item.Criteria, wantCriteria) {
+		t.Errorf("Criteria = %+v, want %+v（### Close が空なら Repeat は nil）", item.Criteria, wantCriteria)
 	}
 	if item.Comments != nil {
 		t.Errorf("Comments = %v, want nil", item.Comments)
@@ -262,12 +260,9 @@ date: 2026-01-01
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := []string{"もう一度1", "もう一度2"}
-	if got := item.Criteria["repeat"]; !reflect.DeepEqual(got, want) {
-		t.Errorf("Criteria.repeat = %v, want %v", got, want)
-	}
-	if _, exists := item.Criteria["ng"]; exists {
-		t.Errorf("Criteria.ng should be absent when ### NG is empty")
+	want := &Criteria{OK: []string{"別解1"}, Repeat: []string{"もう一度1", "もう一度2"}}
+	if !reflect.DeepEqual(item.Criteria, want) {
+		t.Errorf("Criteria = %+v, want %+v（### NG が空なら NG は nil）", item.Criteria, want)
 	}
 }
 
@@ -353,10 +348,10 @@ func TestSaveYAMLData_RoundTrip(t *testing.T) {
 			Spell:    "Answer1",
 			Tags:     []string{"タグ1", "タグ2"},
 			Comments: []string{"コメント1", "コメント2\n2行目"},
-			Criteria: map[string][]string{
-				"ok":     {"別解1"},
-				"ng":     {"誤答1"},
-				"repeat": {"もう一度1"},
+			Criteria: &Criteria{
+				OK:     []string{"別解1"},
+				NG:     []string{"誤答1"},
+				Repeat: []string{"もう一度1"},
 			},
 		},
 		{
@@ -379,5 +374,42 @@ func TestSaveYAMLData_RoundTrip(t *testing.T) {
 
 	if !reflect.DeepEqual(original, loaded) {
 		t.Errorf("round-trip mismatch:\noriginal = %+v\nloaded   = %+v", original, loaded)
+	}
+}
+
+// Criteriaを構造体にしても，書き出されるYAMLのフォーマット（criteriaのキー名と省略の規則）が変わらないことを確認する．
+func TestSaveYAMLData_CriteriaFormat(t *testing.T) {
+	// Arrange
+	items := []QuizItem{
+		{Question: "問題1", Answer: "答え1", Criteria: &Criteria{OK: []string{"別解1"}, Repeat: []string{"もう一度1"}}},
+		{Question: "問題2", Answer: "答え2"},
+	}
+	yamlPath := filepath.Join(t.TempDir(), "out.yaml")
+	expected := `- question: 問題1
+  answer: 答え1
+  spell: ""
+  criteria:
+    ok:
+        - 別解1
+    repeat:
+        - もう一度1
+- question: 問題2
+  answer: 答え2
+  spell: ""
+`
+
+	// Act
+	err := SaveYAMLData(items, yamlPath)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("SaveYAMLData failed: %v", err)
+	}
+	got, err := os.ReadFile(yamlPath)
+	if err != nil {
+		t.Fatalf("failed to read output: %v", err)
+	}
+	if string(got) != expected {
+		t.Errorf("SaveYAMLData output =\n%s\nwant\n%s", got, expected)
 	}
 }

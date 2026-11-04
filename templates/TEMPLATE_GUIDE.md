@@ -9,24 +9,36 @@ type TemplateData struct {
 }
 
 type QuizItem struct {
-    Question string             // 問題文
-    Answer   string             // 答え
-    Spell    string             // 原語表記（英語表記）
-    Tags     []string           // タグ
-    Comments []string           // コメント（補足説明など）
-    Criteria map[string][]string // 判定基準（ok/ng/repeat）
+    Question string    // 問題文
+    Answer   string    // 答え
+    Spell    string    // 原語表記（英語表記）
+    Tags     []string  // タグ
+    Comments []string  // コメント（補足説明など）
+    Criteria *Criteria // 判定基準（判定基準が無い場合はnil）
+}
+
+type Criteria struct {
+    OK     []string // 別解（criteria.ok）
+    NG     []string // 誤答（criteria.ng）
+    Repeat []string // もう一度（criteria.repeat）
 }
 ```
 
+`Criteria` は，YAMLに `criteria` が無い場合や，`criteria` の中身が空の場合は `nil` になります．
+そのため `{{if .Criteria}}...{{end}}` で判定基準の有無によって出力を切り替えられます．
+
 ### 判定基準の個別アクセス
 
-`QuizItem` では，判定基準の各項目に以下の変数でアクセスできます（いずれも `[]string`．該当キーがない場合は空）．
+`QuizItem` では，判定基準の各項目に以下の変数でアクセスできます（いずれも `[]string`．該当キーがない場合や `Criteria` が `nil` の場合は空）．
 
 | 変数 | 内容 | 対応するキー |
 |------|------|--------------|
 | `{{.OK}}` | 別解（正解） | `criteria.ok` |
 | `{{.NG}}` | 誤答 | `criteria.ng` |
 | `{{.Repeat}}` | もう一度 | `criteria.repeat` |
+
+`{{.Criteria.OK}}` / `{{.Criteria.NG}}` / `{{.Criteria.Repeat}}` でも同じ値を参照できますが，
+判定基準が無い問題では `Criteria` が `nil` のためエラーになります．`{{if .Criteria}}` で囲むか，`{{.OK}}` などを使ってください．
 
 ```text
 {{if .OK}}別解: {{quoteAll .OK ""}}（{{len .OK}}件）{{end}}
@@ -70,6 +82,21 @@ type QuizItem struct {
 「別解1」「別解2」／「誤答1」「誤答2」は誤答／「もう一度1」「もう一度2」はもう一度
 ```
   - 別解は`ok`，誤答は`ng`，もう一度は`repeat`キーの値を使用します．
+  - 空のリストは出力に含めません．判定基準が無い（`.Criteria` が `nil`）場合は空文字を返します．
+
+### 以前のバージョンからの移行
+
+`Criteria` は以前は `map[string][]string` でしたが，専用の構造体に変わりました．
+`{{formatCriteria .Criteria}}` と `{{if .Criteria}}` はそのまま使えます．
+マップのキーで参照していた箇所は，以下のように書き換えてください．
+
+| 以前の書き方 | 現在の書き方 |
+|--------------|--------------|
+| `{{.Criteria.ok}}` | `{{.OK}}`（または `{{.Criteria.OK}}`） |
+| `{{.Criteria.ng}}` | `{{.NG}}`（または `{{.Criteria.NG}}`） |
+| `{{.Criteria.repeat}}` | `{{.Repeat}}`（または `{{.Criteria.Repeat}}`） |
+| `{{index .Criteria "ok"}}` | `{{.OK}}` |
+| `{{range $key, $values := .Criteria}}` | `{{.OK}}` / `{{.NG}}` / `{{.Repeat}}` を個別に使用 |
 
 ### HTMLの自動エスケープ
 

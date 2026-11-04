@@ -9,6 +9,7 @@ package quiz_yaml_converter
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	htmltemplate "html/template"
 	"io"
@@ -24,30 +25,52 @@ import (
 // 1問ごとのエントリを表す構造体
 // 問題文、答え、原語表記、コメント、および判定基準を含む。
 type QuizItem struct {
-	Question string              `yaml:"question"`           // 問題文
-	Answer   string              `yaml:"answer"`             // 答え
-	Spell    string              `yaml:"spell"`              // 原語表記（英語表記）
-	Tags     []string            `yaml:"tags,omitempty"`     // タグ
-	Comments []string            `yaml:"comments,omitempty"` // コメント
-	Criteria map[string][]string `yaml:"criteria,omitempty"` // 判定基準（ok/ng/repeat）
+	Question string    `yaml:"question"`           // 問題文
+	Answer   string    `yaml:"answer"`             // 答え
+	Spell    string    `yaml:"spell"`              // 原語表記（英語表記）
+	Tags     []string  `yaml:"tags,omitempty"`     // タグ
+	Comments []string  `yaml:"comments,omitempty"` // コメント
+	Criteria *Criteria `yaml:"criteria,omitempty"` // 判定基準（判定基準が無い場合はnil）
+}
+
+// 1問分の判定基準を表す構造体．
+// YAMLの criteria オブジェクトに対応し，ok / ng / repeat 以外のキーは読み込み時にエラーになる．
+type Criteria struct {
+	OK     []string `yaml:"ok,omitempty"`     // 別解（正解として扱う答え）
+	NG     []string `yaml:"ng,omitempty"`     // 誤答として扱う答え
+	Repeat []string `yaml:"repeat,omitempty"` // もう一度回答を求める答え
+}
+
+// 判定基準が1件も含まれていない（nilを含む）かどうかを返す．
+func (c *Criteria) IsEmpty() bool {
+	return c == nil || (len(c.OK) == 0 && len(c.NG) == 0 && len(c.Repeat) == 0)
 }
 
 // 判定基準のうち別解（ok）のリストを返す．
-// テンプレートからは {{.OK}} でアクセスできる．
+// テンプレートからは {{.OK}} でアクセスできる．Criteriaがnilの場合はnilを返す．
 func (q QuizItem) OK() []string {
-	return q.Criteria["ok"]
+	if q.Criteria == nil {
+		return nil
+	}
+	return q.Criteria.OK
 }
 
 // 判定基準のうち誤答（ng）のリストを返す．
-// テンプレートからは {{.NG}} でアクセスできる．
+// テンプレートからは {{.NG}} でアクセスできる．Criteriaがnilの場合はnilを返す．
 func (q QuizItem) NG() []string {
-	return q.Criteria["ng"]
+	if q.Criteria == nil {
+		return nil
+	}
+	return q.Criteria.NG
 }
 
 // 判定基準のうちもう一度（repeat）のリストを返す．
-// テンプレートからは {{.Repeat}} でアクセスできる．
+// テンプレートからは {{.Repeat}} でアクセスできる．Criteriaがnilの場合はnilを返す．
 func (q QuizItem) Repeat() []string {
-	return q.Criteria["repeat"]
+	if q.Criteria == nil {
+		return nil
+	}
+	return q.Criteria.Repeat
 }
 
 // テンプレート処理用のデータ構造体
@@ -114,22 +137,22 @@ func formatCriteriaSection(items []string, suffix string) string {
 // 正誤判定のフォーマットを行う．
 //
 // 形式は「別解1」「別解2」／「誤答1」は誤答／「もう一度1」はもう一度という形式で返す．
-func FormatCriteria(criteria map[string][]string) string {
+// 空のリストは出力に含めない．Criteriaがnilの場合は空文字を返す．
+// テンプレートからは {{formatCriteria .Criteria}} のように使用する．
+func (c *Criteria) Format() string {
+	if c == nil {
+		return ""
+	}
+
 	var parts []string
-
-	// Process ok
-	if ok, exists := criteria["ok"]; exists && len(ok) > 0 {
-		parts = append(parts, formatCriteriaSection(ok, ""))
+	if len(c.OK) > 0 {
+		parts = append(parts, formatCriteriaSection(c.OK, ""))
 	}
-
-	// Process ng
-	if ng, exists := criteria["ng"]; exists && len(ng) > 0 {
-		parts = append(parts, formatCriteriaSection(ng, "は誤答"))
+	if len(c.NG) > 0 {
+		parts = append(parts, formatCriteriaSection(c.NG, "は誤答"))
 	}
-
-	// Process repeat
-	if repeat, exists := criteria["repeat"]; exists && len(repeat) > 0 {
-		parts = append(parts, formatCriteriaSection(repeat, "はもう一度"))
+	if len(c.Repeat) > 0 {
+		parts = append(parts, formatCriteriaSection(c.Repeat, "はもう一度"))
 	}
 
 	return strings.Join(parts, "／")
@@ -174,6 +197,8 @@ func DetectOutputFormat(outputFile, templateFile string) OutputFormat {
 }
 
 // YAMLファイルからデータを読み込む．
+// 定義されていないキー（criteriaの ok / ng / repeat 以外のキーを含む）はエラーになる．
+// 判定基準が1件も含まれていない criteria は nil として扱う．
 func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 	yamlFile, err := os.Open(yamlFilePath)
 	if err != nil {
@@ -181,15 +206,20 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 	}
 	defer yamlFile.Close()
 
-	yamlData, err := io.ReadAll(yamlFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read YAML file: %w", err)
+	var data []QuizItem
+	decoder := yaml.NewDecoder(yamlFile)
+	decoder.KnownFields(true)
+	// 空のファイルは io.EOF になるが，yaml.Unmarshal と同様に空のデータとして扱う．
+	if err := decoder.Decode(&data); err != nil && !errors.Is(err, io.EOF) {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	var data []QuizItem
-	err = yaml.Unmarshal(yamlData, &data)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	// criteria: {} のように中身が無い判定基準は，criteriaを書かなかった場合と同じく nil にそろえる．
+	// これにより，テンプレートの {{if .Criteria}} が判定基準の有無で分岐できる．
+	for i := range data {
+		if data[i].Criteria.IsEmpty() {
+			data[i].Criteria = nil
+		}
 	}
 
 	return data, nil
@@ -260,36 +290,21 @@ func validateQuizItem(item QuizItem, index int) []string {
 	}
 
 	// criteriaフィールドのバリデーション
+	// 不正なキーは LoadYAMLData（KnownFields）で検出されるため，ここでは空の要素のみを確認する．
 	if item.Criteria != nil {
-		if ok, exists := item.Criteria["ok"]; exists {
-			for j, answer := range ok {
-				if strings.TrimSpace(answer) == "" {
-					errors = append(errors, fmt.Sprintf("%scriteria.ok[%d] が空です", prefix, j))
-				}
-			}
+		sections := []struct {
+			key   string
+			items []string
+		}{
+			{"ok", item.Criteria.OK},
+			{"ng", item.Criteria.NG},
+			{"repeat", item.Criteria.Repeat},
 		}
-
-		if ng, exists := item.Criteria["ng"]; exists {
-			for j, answer := range ng {
+		for _, section := range sections {
+			for j, answer := range section.items {
 				if strings.TrimSpace(answer) == "" {
-					errors = append(errors, fmt.Sprintf("%scriteria.ng[%d] が空です", prefix, j))
+					errors = append(errors, fmt.Sprintf("%scriteria.%s[%d] が空です", prefix, section.key, j))
 				}
-			}
-		}
-
-		if repeat, exists := item.Criteria["repeat"]; exists {
-			for j, answer := range repeat {
-				if strings.TrimSpace(answer) == "" {
-					errors = append(errors, fmt.Sprintf("%scriteria.repeat[%d] が空です", prefix, j))
-				}
-			}
-		}
-
-		// 不正なcriteriaキーのチェック
-		validKeys := map[string]bool{"ok": true, "ng": true, "repeat": true}
-		for key := range item.Criteria {
-			if !validKeys[key] {
-				errors = append(errors, fmt.Sprintf("%s不正なcriteriaキー: '%s' (使用可能: ok, ng, repeat)", prefix, key))
 			}
 		}
 	}
@@ -331,7 +346,7 @@ type templateExecutor interface {
 // テンプレートに提供する関数のうち，エスケープモードに依存しないもの．
 func baseTemplateFuncs() map[string]any {
 	return map[string]any{
-		"formatCriteria": FormatCriteria,
+		"formatCriteria": (*Criteria).Format,
 		"quoteAll":       formatCriteriaSection,
 		"csvRow":         CSVRow,
 		"csvField":       CSVField,
@@ -426,16 +441,11 @@ func ConvertYAMLToCSV(yamlFilePath, csvFilePath string) error {
 
 	// Write data rows
 	for _, item := range data {
-		criteriaText := ""
-		if item.Criteria != nil {
-			criteriaText = FormatCriteria(item.Criteria)
-		}
-
 		err = writer.Write([]string{
 			item.Question,
 			item.Answer,
 			item.Spell,
-			criteriaText,
+			item.Criteria.Format(),
 		})
 		if err != nil {
 			return fmt.Errorf("failed to write CSV row: %w", err)

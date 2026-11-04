@@ -56,6 +56,9 @@ YAMLファイルは配列形式で、各要素がクイズの1問を表します
 | `ng` | array[string] | 誤答として明示的に判定する答え |
 | `repeat` | array[string] | もう一度回答を求める答え |
 
+`ok` / `ng` / `repeat` 以外のキー（`OK` のような大文字・小文字の違いを含む）を書くと，読み込み時にエラーになります．
+同様に，問題のフィールドも上記の表にないキーを書くとエラーになります．
+
 ## 作成時のポイント
 
 ### 1. 文字エンコーディング
@@ -125,6 +128,7 @@ go build -o quiz-yaml-converter
 2. **スキーマ検証エラー**
    - 必須フィールド（question, answer）が未定義
    - データ型が間違っている
+   - 定義されていないキーがある（例: `line 5: field maybe not found in type quiz_yaml_converter.Criteria` は，5行目の `criteria` に `ok` / `ng` / `repeat` 以外のキー `maybe` があることを表します）
 
 3. **文字エンコーディングエラー**
    - ファイルがUTF-8以外で保存されている
