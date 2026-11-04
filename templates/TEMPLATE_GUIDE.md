@@ -12,9 +12,35 @@ type QuizItem struct {
     Question string             // 問題文
     Answer   string             // 答え
     Spell    string             // 原語表記（英語表記）
+    Tags     []string           // タグ
     Comments []string           // コメント（補足説明など）
     Criteria map[string][]string // 判定基準（ok/ng/repeat）
 }
+```
+
+### 判定基準の個別アクセス
+
+`QuizItem` では，判定基準の各項目に以下の変数でアクセスできます（いずれも `[]string`．該当キーがない場合は空）．
+
+| 変数 | 内容 | 対応するキー |
+|------|------|--------------|
+| `{{.OK}}` | 別解（正解） | `criteria.ok` |
+| `{{.NG}}` | 誤答 | `criteria.ng` |
+| `{{.Repeat}}` | もう一度 | `criteria.repeat` |
+
+```text
+{{if .OK}}別解: {{quoteAll .OK ""}}（{{len .OK}}件）{{end}}
+{{if .NG}}誤答: {{quoteAll .NG "は誤答"}}{{end}}
+{{range .Repeat}}- {{addQuotes .}}はもう一度
+{{end}}
+```
+
+出力例（`ok: [正答1, 正答2]`, `ng: [誤答1]`, `repeat: [もう一度1]` の場合）:
+
+```text
+別解: 「正答1」「正答2」（2件）
+誤答: 「誤答1」は誤答
+- 「もう一度1」はもう一度
 ```
 
 ### 利用可能なテンプレート関数
@@ -22,13 +48,14 @@ type QuizItem struct {
 | 関数名 | 説明 | 使用例 |
 |--------|------|--------|
 | `formatCriteria` | criteriaを専用形式でフォーマット | `{{formatCriteria .Criteria}}` |
+| `quoteAll` | 各要素に「」を付けて**区切り文字なしで**連結し，第2引数の文字列を末尾に付ける（第2引数は区切り文字ではない．リストが空なら空文字） | `{{quoteAll .NG "は誤答"}}` → `「誤答1」「誤答2」は誤答` |
 | `addQuotes` | 「」引用符を追加 | `{{addQuotes .Answer}}` |
 | `join` | 文字列スライスを結合 | `{{join .Strings ","}}` |
 | `upper` | 大文字に変換 | `{{upper .Question}}` |
 | `lower` | 小文字に変換 | `{{lower .Answer}}` |
 | `replace` | 文字列置換 | `{{replace .Text "old" "new"}}` |
 | `add` | 数値の加算 | `{{add $index 1}}` |
-| `len` | スライスの長さ | `{{len .Items}}` |
+| `len` | スライスの長さ（Go標準） | `{{len .Items}}`, `{{len .OK}}` |
 | `now` | 現在日時 | `{{now}}` |
 
 #### 注意

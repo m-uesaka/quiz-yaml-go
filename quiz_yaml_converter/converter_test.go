@@ -3,6 +3,7 @@ package quiz_yaml_converter
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -363,6 +364,44 @@ A: 答え2
 			shouldError: false,
 		},
 		{
+			name: "template with individual criteria",
+			data: []QuizItem{
+				{
+					Question: "問題1",
+					Answer:   "答え1",
+					Criteria: map[string][]string{
+						"ok":     {"正答1", "正答2"},
+						"ng":     {"誤答1"},
+						"repeat": {"もう一度1"},
+					},
+				},
+			},
+			templateContent: `{{range .Items}}
+別解: {{quoteAll .OK ""}}
+別解数: {{len .OK}}
+誤答: {{quoteAll .NG ""}}
+もう一度: {{quoteAll .Repeat "はもう一度"}}
+問題数: {{len $.Items}}
+{{end}}`,
+			expectedOutput: `
+別解: 「正答1」「正答2」
+別解数: 2
+誤答: 「誤答1」
+もう一度: 「もう一度1」はもう一度
+問題数: 1
+`,
+			shouldError: false,
+		},
+		{
+			name: "template with missing individual criteria",
+			data: []QuizItem{
+				{Question: "問題1", Answer: "答え1"},
+			},
+			templateContent: `{{range .Items}}[{{if .OK}}OK{{end}}{{if .NG}}NG{{end}}{{if .Repeat}}R{{end}}{{quoteAll .NG "は誤答"}}{{len .Repeat}}]{{end}}`,
+			expectedOutput:  `[0]`,
+			shouldError:     false,
+		},
+		{
 			name: "template with custom functions",
 			data: []QuizItem{
 				{Question: "test question", Answer: "test answer", Spell: "test spell"},
@@ -420,6 +459,58 @@ A: 答え2
 
 			if string(outputContent) != tt.expectedOutput {
 				t.Errorf("ConvertToTemplate() output = %q, want %q", string(outputContent), tt.expectedOutput)
+			}
+		})
+	}
+}
+
+func TestQuizItemCriteriaAccessors(t *testing.T) {
+	tests := []struct {
+		name           string
+		criteria       map[string][]string
+		expectedOK     []string
+		expectedNG     []string
+		expectedRepeat []string
+	}{
+		{
+			name: "all keys present",
+			criteria: map[string][]string{
+				"ok":     {"ok1", "ok2"},
+				"ng":     {"ng1"},
+				"repeat": {"rep1"},
+			},
+			expectedOK:     []string{"ok1", "ok2"},
+			expectedNG:     []string{"ng1"},
+			expectedRepeat: []string{"rep1"},
+		},
+		{
+			name:       "only ok",
+			criteria:   map[string][]string{"ok": {"ok1"}},
+			expectedOK: []string{"ok1"},
+		},
+		{
+			name:     "nil criteria",
+			criteria: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			item := QuizItem{Question: "q", Answer: "a", Criteria: tt.criteria}
+
+			// Act
+			ok, ng, repeat := item.OK(), item.NG(), item.Repeat()
+
+			// Assert
+			if !reflect.DeepEqual(ok, tt.expectedOK) {
+				t.Errorf("OK() = %v, want %v", ok, tt.expectedOK)
+			}
+			if !reflect.DeepEqual(ng, tt.expectedNG) {
+				t.Errorf("NG() = %v, want %v", ng, tt.expectedNG)
+			}
+			if !reflect.DeepEqual(repeat, tt.expectedRepeat) {
+				t.Errorf("Repeat() = %v, want %v", repeat, tt.expectedRepeat)
 			}
 		})
 	}
