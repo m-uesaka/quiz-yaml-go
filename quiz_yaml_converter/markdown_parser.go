@@ -246,11 +246,26 @@ func isMarkdownFileEntry(path string, d fs.DirEntry) bool {
 // 大文字・小文字は区別しない）のパス一覧を返す．ディレクトリは拡張子に
 // かかわらず対象外とする．recursiveがtrueの場合はサブディレクトリも
 // 再帰的に辿る．
+//
+// 再帰の有無で振る舞いが変わらないように，収集の前に dirPath を確認し，
+// 存在しない場合・ディレクトリでない場合はエラーを返す．存在しない場合のエラーは
+// 元のエラーをラップするため，errors.Is(err, fs.ErrNotExist) で判定できる．
 func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
+	info, err := os.Stat(dirPath)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, fmt.Errorf("Markdownディレクトリが見つかりません: %w", err)
+		}
+		return nil, fmt.Errorf("Markdownディレクトリを確認できません: %w", err)
+	}
+	if !info.IsDir() {
+		return nil, fmt.Errorf("Markdownディレクトリではありません（ファイルが指定されています）: %s", dirPath)
+	}
+
 	if !recursive {
 		entries, err := os.ReadDir(dirPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read markdown directory: %w", err)
+			return nil, fmt.Errorf("Markdownディレクトリを読み込めません: %w", err)
 		}
 		var paths []string
 		for _, e := range entries {
@@ -263,7 +278,7 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 	}
 
 	var paths []string
-	err := filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -273,7 +288,7 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to walk markdown directory: %w", err)
+		return nil, fmt.Errorf("Markdownディレクトリを辿れません: %w", err)
 	}
 	return paths, nil
 }
@@ -283,6 +298,10 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 // 出力順序が安定するようにする．recursiveがtrueの場合はサブディレクトリも
 // 再帰的に辿る．
 //
+// ディレクトリが存在しない場合・ディレクトリでない場合に加えて，Markdownファイルが
+// 1つも見つからない場合もエラーを返す．（パスの指定ミスに気づけるようにし，
+// 既存の出力ファイルが空のリストで上書きされないようにするため．）
+//
 // 一部のファイルの変換に失敗した場合は，変換できたQuizItemと，各ファイルの
 // エラーを errors.Join で集約したエラーの両方を返す．呼び出し側は errors.Is /
 // errors.As で個々のエラーを扱える．
@@ -290,6 +309,9 @@ func AggregateMarkdownDir(dirPath string, recursive bool) ([]QuizItem, error) {
 	paths, err := collectMarkdownFiles(dirPath, recursive)
 	if err != nil {
 		return nil, err
+	}
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("Markdownファイル（拡張子が .md のファイル）が見つかりません: %s", dirPath)
 	}
 	sort.Strings(paths)
 

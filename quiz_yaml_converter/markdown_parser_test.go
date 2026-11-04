@@ -2,6 +2,8 @@ package quiz_yaml_converter
 
 import (
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -544,6 +546,111 @@ func TestAggregateMarkdownDir_MultipleFailuresAreJoined(t *testing.T) {
 	var typeErr *yaml.TypeError
 	if !errors.As(err, &typeErr) {
 		t.Errorf("errors.As(err, *yaml.TypeError) = false, want true: %v", err)
+	}
+}
+
+// Markdownファイル以外のファイルが混在していても，再帰の有無にかかわらず
+// Markdownファイルだけが読み込まれることを確認する．
+func TestAggregateMarkdownDir_IgnoresNonMarkdownFiles(t *testing.T) {
+	tests := []struct {
+		name      string
+		recursive bool
+	}{
+		{name: "再帰しない", recursive: false},
+		{name: "再帰する", recursive: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え"))
+			writeTempMarkdown(t, dir, "memo.txt", "Markdownではないファイル")
+
+			// Act
+			items, err := AggregateMarkdownDir(dir, tt.recursive)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(items) != 1 || items[0].Answer != "答え" {
+				t.Errorf("AggregateMarkdownDir(recursive=%v) = %+v, want 1 item with Answer %q", tt.recursive, items, "答え")
+			}
+		})
+	}
+}
+
+// 存在しないディレクトリ・ファイル・Markdownファイルを含まないディレクトリを指定した場合，
+// 再帰の有無にかかわらず，同じエラーになることを確認する．
+func TestAggregateMarkdownDir_InvalidDirectory(t *testing.T) {
+	tests := []struct {
+		name string
+		// pathはフィクスチャ用のディレクトリを受け取り，AggregateMarkdownDirに渡すパスを返す
+		path         func(t *testing.T, dir string) string
+		wantMsg      string
+		wantNotExist bool
+	}{
+		{
+			name: "存在しないディレクトリ",
+			path: func(_ *testing.T, dir string) string {
+				return filepath.Join(dir, "missing")
+			},
+			wantMsg:      "Markdownディレクトリが見つかりません",
+			wantNotExist: true,
+		},
+		{
+			name: "ディレクトリではなくファイル",
+			path: func(t *testing.T, dir string) string {
+				return writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え"))
+			},
+			wantMsg: "Markdownディレクトリではありません",
+		},
+		{
+			name: "空のディレクトリ",
+			path: func(_ *testing.T, dir string) string {
+				return dir
+			},
+			wantMsg: "Markdownファイル（拡張子が .md のファイル）が見つかりません",
+		},
+		{
+			name: "Markdownファイル以外のファイルのみを含むディレクトリ",
+			path: func(t *testing.T, dir string) string {
+				writeTempMarkdown(t, dir, "memo.txt", "")
+				writeTempMarkdown(t, dir, "quiz.markdown", markdownFixture("答え"))
+				return dir
+			},
+			wantMsg: "Markdownファイル（拡張子が .md のファイル）が見つかりません",
+		},
+	}
+
+	for _, tt := range tests {
+		for _, recursive := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/recursive=%v", tt.name, recursive), func(t *testing.T) {
+				// Arrange
+				path := tt.path(t, t.TempDir())
+
+				// Act
+				items, err := AggregateMarkdownDir(path, recursive)
+
+				// Assert
+				if err == nil {
+					t.Fatalf("expected error, got nil (items: %+v)", items)
+				}
+				if items != nil {
+					t.Errorf("items = %+v, want nil", items)
+				}
+				if !strings.Contains(err.Error(), tt.wantMsg) {
+					t.Errorf("error message %q does not contain %q", err.Error(), tt.wantMsg)
+				}
+				if !strings.Contains(err.Error(), path) {
+					t.Errorf("error message %q does not contain path %q", err.Error(), path)
+				}
+				if got := errors.Is(err, fs.ErrNotExist); got != tt.wantNotExist {
+					t.Errorf("errors.Is(err, fs.ErrNotExist) = %v, want %v", got, tt.wantNotExist)
+				}
+			})
+		}
 	}
 }
 
