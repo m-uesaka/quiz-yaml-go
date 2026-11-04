@@ -90,6 +90,16 @@ go run main.go -input quiz.yaml -validate
 ./quiz-yaml-converter -input quiz.yaml -validate
 ```
 
+`-validate` を指定しない通常の変換や `-markdown-dir` での集約でも同じ内容をチェックし，問題があれば標準エラー出力に警告を表示します．
+警告があっても出力ファイルは書き出され，終了コードは0になります（criteria の不正なキーだけは，従来どおり変換エラーになります）．
+
+```
+⚠️ 警告: 問題 1: 答え (answer) が空です
+✅ CSV変換完了: quiz.yaml → quiz.csv
+```
+
+`-markdown-dir` での警告の問題番号は，出力されるYAMLファイルでの順番（ファイル名順）を表します．
+
 ## ディレクトリ構造
 
 ```

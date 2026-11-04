@@ -1,6 +1,9 @@
 package quiz_yaml_converter
 
 import (
+	"errors"
+	"io/fs"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -137,5 +140,19 @@ func TestLoadYAMLDataUnknownCriteriaKeys(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// 存在しないファイルを読み込んだ場合，fs.ErrNotExist として判定できるエラーを返すことを確認する．
+func TestLoadYAMLDataMissingFile(t *testing.T) {
+	// Arrange
+	path := filepath.Join(t.TempDir(), "missing.yaml")
+
+	// Act
+	_, err := LoadYAMLData(path)
+
+	// Assert
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Errorf("LoadYAMLData() error = %v, want fs.ErrNotExist", err)
 	}
 }

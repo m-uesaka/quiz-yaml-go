@@ -2,7 +2,6 @@ package quiz_yaml_converter
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -31,14 +30,9 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 
 // YAMLファイルを読み込んでQuizItemのスライスに変換する．
 // criteria の不正なキーはエラーにせず，Criteria に記録したまま返す．
+// ファイルが存在しない場合のエラーは errors.Is(err, fs.ErrNotExist) で判定できる．
 func decodeYAMLFile(yamlFilePath string) ([]QuizItem, error) {
-	yamlFile, err := os.Open(yamlFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open YAML file: %w", err)
-	}
-	defer yamlFile.Close()
-
-	yamlData, err := io.ReadAll(yamlFile)
+	yamlData, err := os.ReadFile(yamlFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}

@@ -96,6 +96,14 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 
+	// printWarnings は変換時に見つかったバリデーションの警告を1件ずつ表示する．
+	// 警告があっても処理は続行し，終了コードには影響しない．
+	printWarnings := func(warnings []quiz_yaml_converter.ValidationError) {
+		for _, w := range warnings {
+			fmt.Fprintf(stderr, "⚠️ 警告: %s\n", w)
+		}
+	}
+
 	// フラグをパース（エラーメッセージとヘルプはflagパッケージが表示する）
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -118,7 +126,9 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 		if *outputFile == "" {
 			return usageError("出力ファイルが指定されていません")
 		}
-		if err := quiz_yaml_converter.ConvertMarkdownDirToYAML(*markdownDir, *outputFile, *recursive); err != nil {
+		warnings, err := quiz_yaml_converter.ConvertMarkdownDirToYAMLWithWarnings(*markdownDir, *outputFile, *recursive)
+		printWarnings(warnings)
+		if err != nil {
 			return failure(err)
 		}
 		fmt.Fprintf(stdout, "✅ Markdown集約完了: %s → %s\n", *markdownDir, *outputFile)
@@ -153,7 +163,9 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 
 	// テンプレートファイルが指定されている場合はテンプレート変換を実行
 	if *template != "" {
-		if err := quiz_yaml_converter.Convert(*inputFile, *outputFile, *template); err != nil {
+		warnings, err := quiz_yaml_converter.ConvertWithWarnings(*inputFile, *outputFile, *template)
+		printWarnings(warnings)
+		if err != nil {
 			return failure(err)
 		}
 		fmt.Fprintf(stdout, "✅ テンプレート変換完了: %s + %s → %s\n", *inputFile, *template, *outputFile)
@@ -165,7 +177,9 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return usageError(fmt.Sprintf("サポートされていないフォーマットです: %s\nサポートされているフォーマット: csv, html, markdown", *format))
 	}
-	if err := quiz_yaml_converter.Convert(*inputFile, *outputFile, f.template); err != nil {
+	warnings, err := quiz_yaml_converter.ConvertWithWarnings(*inputFile, *outputFile, f.template)
+	printWarnings(warnings)
+	if err != nil {
 		return failure(err)
 	}
 	fmt.Fprintf(stdout, "✅ %s変換完了: %s → %s\n", f.label, *inputFile, *outputFile)
