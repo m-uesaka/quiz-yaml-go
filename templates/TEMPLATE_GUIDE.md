@@ -59,6 +59,8 @@ type QuizItem struct {
 | `add` | 数値の加算 | `{{add $index 1}}` |
 | `len` | スライスの長さ（Go標準） | `{{len .Items}}`, `{{len .OK}}` |
 | `now` | 現在日時 | `{{now}}` |
+| `escapeHTML` | HTMLの特殊文字（`<` `>` `&` `"` `'`）をエスケープ．Markdownなど自動エスケープされないテンプレートで使用（HTMLテンプレートでも二重エスケープされない） | `{{escapeHTML .Question}}` |
+| `safeHTML` | 値をエスケープせずにHTMLとして出力（HTMLテンプレート用．信頼できる値にのみ使用） | `{{join .Comments "<br>" \| safeHTML}}` |
 
 #### 注意
 - `add`は数値の加算に使います．デフォルトでは`$index`は0から始まるため、1を加えることで1から始まる番号付けが可能です。
@@ -68,6 +70,19 @@ type QuizItem struct {
 「別解1」「別解2」／「誤答1」「誤答2」は誤答／「もう一度1」「もう一度2」はもう一度
 ```
   - 別解は`ok`，誤答は`ng`，もう一度は`repeat`キーの値を使用します．
+
+### HTMLの自動エスケープ
+
+テンプレートファイル**または**出力ファイルの拡張子が `.html` / `.htm` / `.xhtml`（大文字・小文字は区別しない）の場合，テンプレートはGoの[html/template](https://pkg.go.dev/html/template)で処理され，問題文などの値は自動的にエスケープされます．それ以外の拡張子（`.md`，`.csv`，`.txt`など）では[text/template](https://pkg.go.dev/text/template)で処理され，値はそのまま出力されます．
+
+- 問題文に `<script>` などが含まれていても，HTMLテンプレートではタグとして解釈されずに文字として表示されます．
+- テンプレートや関数の結果に含まれるHTMLもエスケープされます．例えば `{{join .Comments "<br>"}}` は改行にならず `&lt;br&gt;` と出力されます．意図的にHTMLとして出力したい場合は `safeHTML` を使ってください（ただし値自体もエスケープされなくなるため，信頼できるデータにのみ使用してください）．
+- html/templateは出力位置の文脈に応じてエスケープ方法を変えるため，text/templateとは結果が異なる場合があります：
+  - `<!-- -->` のHTMLコメントは出力から削除されます．
+  - `<script>` 内の値はJavaScriptの文字列リテラルとして（`"`付きで）出力されます．
+  - `href` などのURL属性に安全でない値を入れると `#ZgotmplZ` に置き換えられます．
+- `{{if}}` の分岐ごとにタグや属性の開閉が揃っていないテンプレートはエラーになります．エラーの場合，既存の出力ファイルは変更されません．
+- Markdownビューアの多くはMarkdown中のHTMLを描画するため，Markdownテンプレートでは `escapeHTML` を使って値をエスケープすることを推奨します（組み込みの `quiz_template.md` はそのようにしています）．
 
 ### テンプレート例
 
@@ -79,14 +94,14 @@ type QuizItem struct {
 {{range $index, $item := .Items}}
 ## Q{{add $index 1}}
 
-**Q**: {{.Question}}
-**A**: {{.Answer}}
-{{if .Spell}}**読み**: {{.Spell}}{{end}}
+**Q**: {{escapeHTML .Question}}
+**A**: {{escapeHTML .Answer}}
+{{if .Spell}}**読み**: {{escapeHTML .Spell}}{{end}}
 {{if .Comments}}**コメント**:
 {{range .Comments}}
-- {{.}}
+- {{escapeHTML .}}
 {{end}}{{end}}
-{{if .Criteria}}**判定**: {{formatCriteria .Criteria}}{{end}}
+{{if .Criteria}}**判定**: {{formatCriteria .Criteria | escapeHTML}}{{end}}
 
 ---
 {{end}}
