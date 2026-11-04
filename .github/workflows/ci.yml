@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      # チェックアウト
+      - uses: actions/checkout@v7
+
+      # Go をセットアップ
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Task をインストール
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      # ローカルの `task ci` と同じチェックを実行
+      - name: Check format
+        run: task fmt-check
+
+      - name: Vet
+        run: task vet
+
+      - name: Test
+        run: task test

@@ -58,6 +58,27 @@ go test -cover ./...
 go test -v ./...
 ```
 
+### Taskfileを使う方法
+
+[Task](https://taskfile.dev/) をインストールしていれば、`Taskfile.yml` に定義したタスクを実行できます。
+CI（`.github/workflows/ci.yml`）も同じタスクを実行しています。
+
+```bash
+# タスクの一覧を表示
+task
+
+# CIと同じチェック（gofmt・go vet・go test）をまとめて実行
+task ci
+
+# 個別に実行
+task fmt-check  # gofmtで整形されていないファイルがあれば失敗
+task vet        # go vet ./...
+task test       # go test ./...
+
+# gofmtでコードを整形
+task fmt
+```
+
 ### YAMLファイルのバリデーション
 
 ```bash
@@ -76,6 +97,7 @@ quiz-yaml-go/
 ├── go.mod                     # Go modules設定ファイル
 ├── go.sum                     # 依存関係のチェックサム
 ├── README.md                  # プロジェクト説明（このファイル）
+├── Taskfile.yml               # タスクランナー（Task）の設定
 ├── .gitignore                 # Git除外設定
 ├── quiz_yaml_converter/       # クイズ変換ライブラリパッケージ
 │   ├── converter.go           # メイン変換ロジック

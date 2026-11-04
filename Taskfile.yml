@@ -1,0 +1,42 @@
+# https://taskfile.dev
+version: "3"
+
+tasks:
+  default:
+    desc: タスクの一覧を表示する
+    cmds:
+      - task --list
+    silent: true
+
+  vet:
+    desc: go vet で静的解析を行う
+    cmds:
+      - go vet ./...
+
+  test:
+    desc: 全てのテストを実行する
+    cmds:
+      - go test ./...
+
+  fmt:
+    desc: gofmt でコードを整形する
+    cmds:
+      - gofmt -w .
+
+  fmt-check:
+    desc: gofmt で整形されていないファイルがあれば失敗する
+    cmds:
+      - |
+        files="$(gofmt -l .)"
+        if [ -n "$files" ]; then
+          echo "gofmt で整形されていないファイルがあります（task fmt で整形できます）:"
+          echo "$files"
+          exit 1
+        fi
+
+  ci:
+    desc: CIと同じチェック（fmt-check, vet, test）を実行する
+    cmds:
+      - task: fmt-check
+      - task: vet
+      - task: test

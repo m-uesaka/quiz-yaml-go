@@ -12,19 +12,20 @@ jobs:
       contents: write # これがないとリリースを作成できない
     steps:
       # チェックアウト
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Changelog を正しく動作させるために必要
 
       # Go をセットアップ
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: true
 
       # リリース
-      - uses: goreleaser/goreleaser-action@v4
+      - uses: goreleaser/goreleaser-action@v7
         with:
+          version: "~> v2" # .goreleaser.yaml は version: 2 形式
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自動で生成されるシークレット
