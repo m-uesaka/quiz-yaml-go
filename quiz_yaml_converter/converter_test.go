@@ -218,6 +218,34 @@ func TestCriteriaIsEmpty(t *testing.T) {
 	}
 }
 
+func TestQuizItemHasCriteria(t *testing.T) {
+	tests := []struct {
+		name     string
+		criteria *Criteria
+		expected bool
+	}{
+		{name: "nil", criteria: nil, expected: false},
+		{name: "zero value", criteria: &Criteria{}, expected: false},
+		{name: "empty lists", criteria: &Criteria{OK: []string{}}, expected: false},
+		{name: "with entries", criteria: &Criteria{NG: []string{"ng1"}}, expected: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			item := QuizItem{Question: "q", Answer: "a", Criteria: tt.criteria}
+
+			// Act
+			result := item.HasCriteria()
+
+			// Assert
+			if result != tt.expected {
+				t.Errorf("HasCriteria() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
 // テスト用のYAMLファイルを一時ディレクトリに作成し，そのパスを返す．
 func writeTempYAML(t *testing.T, content string) string {
 	t.Helper()
@@ -260,14 +288,36 @@ func TestLoadYAMLData(t *testing.T) {
 			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
 		},
 		{
-			name:     "empty criteria is normalized to nil",
+			name:     "empty criteria",
 			content:  "- question: 問題\n  answer: 答え\n  criteria: {}\n",
+			expected: []QuizItem{{Question: "問題", Answer: "答え", Criteria: &Criteria{}}},
+		},
+		{
+			name:     "criteria with only empty lists",
+			content:  "- question: 問題\n  answer: 答え\n  criteria:\n    ok: []\n",
+			expected: []QuizItem{{Question: "問題", Answer: "答え", Criteria: &Criteria{OK: []string{}}}},
+		},
+		{
+			name:     "unknown item key is ignored",
+			content:  "- question: 問題\n  answer: 答え\n  id: 12\n  memo: メモ\n",
 			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
 		},
 		{
-			name:     "criteria with only empty lists is normalized to nil",
-			content:  "- question: 問題\n  answer: 答え\n  criteria:\n    ok: []\n",
-			expected: []QuizItem{{Question: "問題", Answer: "答え"}},
+			name: "merge key in criteria",
+			content: `- question: 問題1
+  answer: 答え1
+  criteria: &common
+    ng: [ng1]
+- question: 問題2
+  answer: 答え2
+  criteria:
+    <<: *common
+    ok: [ok1]
+`,
+			expected: []QuizItem{
+				{Question: "問題1", Answer: "答え1", Criteria: &Criteria{NG: []string{"ng1"}}},
+				{Question: "問題2", Answer: "答え2", Criteria: &Criteria{OK: []string{"ok1"}, NG: []string{"ng1"}}},
+			},
 		},
 		{
 			name:     "empty file",
@@ -295,27 +345,27 @@ func TestLoadYAMLData(t *testing.T) {
 	}
 }
 
-// 定義されていないキーがある場合，読み込みがエラーになることを確認する．
-func TestLoadYAMLDataUnknownFields(t *testing.T) {
+// criteria に ok / ng / repeat 以外のキーがある場合，読み込みがエラーになることを確認する．
+func TestLoadYAMLDataUnknownCriteriaKeys(t *testing.T) {
 	tests := []struct {
-		name    string
-		content string
-		wantErr string
+		name     string
+		content  string
+		wantErrs []string
 	}{
 		{
-			name:    "unknown criteria key",
-			content: "- question: 問題\n  answer: 答え\n  criteria:\n    ok: [ok1]\n    maybe: [m1]\n",
-			wantErr: "line 5: field maybe not found in type quiz_yaml_converter.Criteria",
+			name:     "unknown criteria key",
+			content:  "- question: 問題\n  answer: 答え\n  criteria:\n    ok: [ok1]\n    maybe: [m1]\n",
+			wantErrs: []string{"問題 1: 不正なcriteriaキー: 'maybe'（5行目） (使用可能: ok, ng, repeat)"},
 		},
 		{
-			name:    "misspelled criteria key",
-			content: "- question: 問題\n  answer: 答え\n  criteria:\n    OK: [ok1]\n",
-			wantErr: "line 4: field OK not found in type quiz_yaml_converter.Criteria",
+			name:     "misspelled criteria key",
+			content:  "- question: 問題\n  answer: 答え\n  criteria:\n    OK: [ok1]\n",
+			wantErrs: []string{"問題 1: 不正なcriteriaキー: 'OK'（4行目）"},
 		},
 		{
-			name:    "unknown item key",
-			content: "- question: 問題\n  answer: 答え\n  note: メモ\n",
-			wantErr: "line 3: field note not found in type quiz_yaml_converter.QuizItem",
+			name:     "unknown keys in multiple items",
+			content:  "- question: 問題1\n  answer: 答え1\n- question: 問題2\n  answer: 答え2\n  criteria:\n    maybe: [m1]\n    close: [c1]\n",
+			wantErrs: []string{"問題 2: 不正なcriteriaキー: 'maybe'（6行目）", "問題 2: 不正なcriteriaキー: 'close'（7行目）"},
 		},
 	}
 
@@ -331,8 +381,10 @@ func TestLoadYAMLDataUnknownFields(t *testing.T) {
 			if err == nil {
 				t.Fatal("LoadYAMLData() error = nil, want error")
 			}
-			if !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("LoadYAMLData() error = %q, want it to contain %q", err, tt.wantErr)
+			for _, want := range tt.wantErrs {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("LoadYAMLData() error = %q, want it to contain %q", err, want)
+				}
 			}
 		})
 	}
@@ -376,7 +428,12 @@ func TestValidateYAMLFileInvalidCriteria(t *testing.T) {
 		{
 			name:       "unknown criteria key",
 			content:    "- question: 問題\n  answer: 答え\n  criteria:\n    maybe: [m1]\n",
-			wantErrors: []string{"field maybe not found in type quiz_yaml_converter.Criteria"},
+			wantErrors: []string{"問題 1: 不正なcriteriaキー: 'maybe'（4行目） (使用可能: ok, ng, repeat)"},
+		},
+		{
+			name:       "unknown criteria key is reported with other errors",
+			content:    "- question: 問題1\n  answer: 答え1\n  criteria:\n    maybe: [m1]\n- question: 問題2\n  answer: 答え2\n- question: 問題3\n  answer: \"\"\n",
+			wantErrors: []string{"問題 1: 不正なcriteriaキー: 'maybe'（4行目）", "問題 3: 答え (answer) が空です"},
 		},
 	}
 
@@ -391,6 +448,9 @@ func TestValidateYAMLFileInvalidCriteria(t *testing.T) {
 			// Assert
 			if result.IsValid {
 				t.Fatalf("ValidateYAMLFile() IsValid = true, want false")
+			}
+			if result.Items == 0 {
+				t.Errorf("Items = 0, want the number of items in the file")
 			}
 			if len(result.Errors) != len(tt.wantErrors) {
 				t.Fatalf("Errors = %q, want %d errors", result.Errors, len(tt.wantErrors))

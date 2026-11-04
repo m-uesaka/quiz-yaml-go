@@ -9,7 +9,6 @@ package quiz_yaml_converter
 import (
 	"bytes"
 	"encoding/csv"
-	"errors"
 	"fmt"
 	htmltemplate "html/template"
 	"io"
@@ -34,11 +33,57 @@ type QuizItem struct {
 }
 
 // 1問分の判定基準を表す構造体．
-// YAMLの criteria オブジェクトに対応し，ok / ng / repeat 以外のキーは読み込み時にエラーになる．
+// YAMLの criteria オブジェクトに対応する．ok / ng / repeat 以外のキーは読み込み時に記録され，
+// LoadYAMLData ではエラー，ValidateYAMLFile ではバリデーションエラーとして報告される．
 type Criteria struct {
 	OK     []string `yaml:"ok,omitempty"`     // 別解（正解として扱う答え）
 	NG     []string `yaml:"ng,omitempty"`     // 誤答として扱う答え
 	Repeat []string `yaml:"repeat,omitempty"` // もう一度回答を求める答え
+
+	unknownKeys []unknownCriteriaKey // YAMLに書かれていた ok / ng / repeat 以外のキー
+}
+
+// criteria に書かれていた不正なキーと，その行番号．
+type unknownCriteriaKey struct {
+	name string
+	line int
+}
+
+// YAMLの criteria オブジェクトを読み込む．
+// ok / ng / repeat はそのまま読み込み，それ以外のキーは不正なキーとして記録する．
+// criteria 以外のフィールドの未定義のキーは従来どおり無視するため，Decoder.KnownFields は使わない．
+func (c *Criteria) UnmarshalYAML(node *yaml.Node) error {
+	type plain Criteria // UnmarshalYAMLを持たない型に変換し，再帰呼び出しを防ぐ
+	if err := node.Decode((*plain)(c)); err != nil {
+		return err
+	}
+	if node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		key := node.Content[i]
+		if key.Tag == "!!merge" { // <<: *anchor によるマージは不正なキーとして扱わない
+			continue
+		}
+		switch key.Value {
+		case "ok", "ng", "repeat":
+			continue
+		}
+		c.unknownKeys = append(c.unknownKeys, unknownCriteriaKey{name: key.Value, line: key.Line})
+	}
+	return nil
+}
+
+// 不正なキーごとのエラーメッセージを返す．prefixは「問題 1: 」のような問題の位置を表す文字列．
+func (c *Criteria) unknownKeyErrors(prefix string) []string {
+	if c == nil {
+		return nil
+	}
+	var errs []string
+	for _, key := range c.unknownKeys {
+		errs = append(errs, fmt.Sprintf("%s不正なcriteriaキー: '%s'（%d行目） (使用可能: ok, ng, repeat)", prefix, key.name, key.line))
+	}
+	return errs
 }
 
 // 判定基準が1件も含まれていない（nilを含む）かどうかを返す．
@@ -46,31 +91,37 @@ func (c *Criteria) IsEmpty() bool {
 	return c == nil || (len(c.OK) == 0 && len(c.NG) == 0 && len(c.Repeat) == 0)
 }
 
+// 判定基準を値で返す．Criteriaがnilの場合はゼロ値（すべてのリストがnil）を返す．
+func (q QuizItem) criteria() Criteria {
+	if q.Criteria == nil {
+		return Criteria{}
+	}
+	return *q.Criteria
+}
+
+// 判定基準が1件以上含まれているかどうかを返す．
+// Criteriaがnilの場合も，criteria: {} のように中身が空の場合もfalseを返す．
+// テンプレートからは {{if .HasCriteria}} のように使用する．
+func (q QuizItem) HasCriteria() bool {
+	return !q.Criteria.IsEmpty()
+}
+
 // 判定基準のうち別解（ok）のリストを返す．
 // テンプレートからは {{.OK}} でアクセスできる．Criteriaがnilの場合はnilを返す．
 func (q QuizItem) OK() []string {
-	if q.Criteria == nil {
-		return nil
-	}
-	return q.Criteria.OK
+	return q.criteria().OK
 }
 
 // 判定基準のうち誤答（ng）のリストを返す．
 // テンプレートからは {{.NG}} でアクセスできる．Criteriaがnilの場合はnilを返す．
 func (q QuizItem) NG() []string {
-	if q.Criteria == nil {
-		return nil
-	}
-	return q.Criteria.NG
+	return q.criteria().NG
 }
 
 // 判定基準のうちもう一度（repeat）のリストを返す．
 // テンプレートからは {{.Repeat}} でアクセスできる．Criteriaがnilの場合はnilを返す．
 func (q QuizItem) Repeat() []string {
-	if q.Criteria == nil {
-		return nil
-	}
-	return q.Criteria.Repeat
+	return q.criteria().Repeat
 }
 
 // テンプレート処理用のデータ構造体
@@ -197,29 +248,42 @@ func DetectOutputFormat(outputFile, templateFile string) OutputFormat {
 }
 
 // YAMLファイルからデータを読み込む．
-// 定義されていないキー（criteriaの ok / ng / repeat 以外のキーを含む）はエラーになる．
-// 判定基準が1件も含まれていない criteria は nil として扱う．
+// criteria に ok / ng / repeat 以外のキーがある場合はエラーになる．
+// criteria 以外のフィールドの未定義のキーは無視する．
 func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
+	data, err := decodeYAMLFile(yamlFilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var errs []string
+	for i, item := range data {
+		errs = append(errs, item.Criteria.unknownKeyErrors(fmt.Sprintf("問題 %d: ", i+1))...)
+	}
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("invalid criteria keys:\n%s", strings.Join(errs, "\n"))
+	}
+
+	return data, nil
+}
+
+// YAMLファイルを読み込んでQuizItemのスライスに変換する．
+// criteria の不正なキーはエラーにせず，Criteria に記録したまま返す．
+func decodeYAMLFile(yamlFilePath string) ([]QuizItem, error) {
 	yamlFile, err := os.Open(yamlFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open YAML file: %w", err)
 	}
 	defer yamlFile.Close()
 
-	var data []QuizItem
-	decoder := yaml.NewDecoder(yamlFile)
-	decoder.KnownFields(true)
-	// 空のファイルは io.EOF になるが，yaml.Unmarshal と同様に空のデータとして扱う．
-	if err := decoder.Decode(&data); err != nil && !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	yamlData, err := io.ReadAll(yamlFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read YAML file: %w", err)
 	}
 
-	// criteria: {} のように中身が無い判定基準は，criteriaを書かなかった場合と同じく nil にそろえる．
-	// これにより，テンプレートの {{if .Criteria}} が判定基準の有無で分岐できる．
-	for i := range data {
-		if data[i].Criteria.IsEmpty() {
-			data[i].Criteria = nil
-		}
+	var data []QuizItem
+	if err := yaml.Unmarshal(yamlData, &data); err != nil {
+		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
 	return data, nil
@@ -248,7 +312,8 @@ func ValidateYAMLFile(yamlFilePath string) ValidationResult {
 	}
 
 	// YAMLデータの読み込み
-	data, err := LoadYAMLData(yamlFilePath)
+	// criteria の不正なキーは，ほかのエラーと一緒に報告するため validateQuizItem で確認する．
+	data, err := decodeYAMLFile(yamlFilePath)
 	if err != nil {
 		result.IsValid = false
 		result.Errors = append(result.Errors, fmt.Sprintf("YAMLファイルの読み込みエラー: %v", err))
@@ -277,20 +342,20 @@ func ValidateYAMLFile(yamlFilePath string) ValidationResult {
 
 // validateQuizItem は個々のクイズアイテムをバリデーションする
 func validateQuizItem(item QuizItem, index int) []string {
-	var errors []string
+	var errs []string
 	prefix := fmt.Sprintf("問題 %d: ", index)
 
 	// 必須フィールドのチェック
 	if strings.TrimSpace(item.Question) == "" {
-		errors = append(errors, prefix+"問題文 (question) が空です")
+		errs = append(errs, prefix+"問題文 (question) が空です")
 	}
 
 	if strings.TrimSpace(item.Answer) == "" {
-		errors = append(errors, prefix+"答え (answer) が空です")
+		errs = append(errs, prefix+"答え (answer) が空です")
 	}
 
 	// criteriaフィールドのバリデーション
-	// 不正なキーは LoadYAMLData（KnownFields）で検出されるため，ここでは空の要素のみを確認する．
+	errs = append(errs, item.Criteria.unknownKeyErrors(prefix)...)
 	if item.Criteria != nil {
 		sections := []struct {
 			key   string
@@ -303,7 +368,7 @@ func validateQuizItem(item QuizItem, index int) []string {
 		for _, section := range sections {
 			for j, answer := range section.items {
 				if strings.TrimSpace(answer) == "" {
-					errors = append(errors, fmt.Sprintf("%scriteria.%s[%d] が空です", prefix, section.key, j))
+					errs = append(errs, fmt.Sprintf("%scriteria.%s[%d] が空です", prefix, section.key, j))
 				}
 			}
 		}
@@ -312,18 +377,18 @@ func validateQuizItem(item QuizItem, index int) []string {
 	// commentsフィールドのバリデーション
 	for j, comment := range item.Comments {
 		if strings.TrimSpace(comment) == "" {
-			errors = append(errors, fmt.Sprintf("%scomments[%d] が空です", prefix, j))
+			errs = append(errs, fmt.Sprintf("%scomments[%d] が空です", prefix, j))
 		}
 	}
 
 	// tagsフィールドのバリデーション
 	for j, tag := range item.Tags {
 		if strings.TrimSpace(tag) == "" {
-			errors = append(errors, fmt.Sprintf("%stags[%d] が空です", prefix, j))
+			errs = append(errs, fmt.Sprintf("%stags[%d] が空です", prefix, j))
 		}
 	}
 
-	return errors
+	return errs
 }
 
 // HTMLとして扱う拡張子（大文字・小文字は区別しない）．

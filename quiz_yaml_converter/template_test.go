@@ -238,6 +238,10 @@ func TestAccessorsWorkWithTemplateFuncs(t *testing.T) {
 		{name: "criteria fields", criteria: criteria, template: `{{join .Criteria.OK ","}}/{{len .Criteria.NG}}/{{len .Criteria.Repeat}}`, expected: "ok1,ok2,ok3/1/0"},
 		{name: "criteria fields guarded by if", criteria: nil, template: `{{if .Criteria}}{{len .Criteria.OK}}{{else}}なし{{end}}`, expected: "なし"},
 		{name: "formatCriteria of nil criteria", criteria: nil, template: `[{{formatCriteria .Criteria}}]`, expected: "[]"},
+		{name: "HasCriteria", criteria: criteria, template: `{{if .HasCriteria}}あり{{end}}`, expected: "あり"},
+		{name: "HasCriteria of nil criteria", criteria: nil, template: `{{if .HasCriteria}}あり{{else}}なし{{end}}`, expected: "なし"},
+		{name: "HasCriteria of empty criteria", criteria: &Criteria{}, template: `{{if .HasCriteria}}あり{{else}}なし{{end}}`, expected: "なし"},
+		{name: "IsEmpty of nil criteria", criteria: nil, template: `{{if .Criteria.IsEmpty}}空{{end}}`, expected: "空"},
 	}
 
 	for _, tt := range tests {
@@ -311,5 +315,42 @@ func TestBuiltinTemplateSnapshot(t *testing.T) {
 				t.Errorf("output of %s does not match %s (run with -update to accept the change)\ngot:\n%s\nwant:\n%s", tt.template, goldenFile, got, string(want))
 			}
 		})
+	}
+}
+
+// 中身が空の判定基準（criteria: {} など）を持つ問題で，組み込みテンプレートが空の判定行を出力しないことを確認する．
+func TestBuiltinTemplateSkipsEmptyCriteria(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		htmlMode bool
+		absent   string
+	}{
+		{name: "markdown", path: "../templates/quiz_template.md", htmlMode: false, absent: "**Criteria:**"},
+		{name: "html", path: "../templates/quiz_template.html", htmlMode: true, absent: "判定:"},
+	}
+
+	for _, tt := range tests {
+		for _, criteria := range []*Criteria{{}, {OK: []string{}, NG: []string{}, Repeat: []string{}}} {
+			t.Run(tt.name, func(t *testing.T) {
+				// Arrange
+				content, err := os.ReadFile(tt.path)
+				if err != nil {
+					t.Fatalf("failed to read template: %v", err)
+				}
+				items := []QuizItem{{Question: "q", Answer: "a", Criteria: criteria}}
+
+				// Act
+				got, err := executeTemplate(t, string(content), tt.htmlMode, items)
+
+				// Assert
+				if err != nil {
+					t.Fatalf("Execute() error = %v", err)
+				}
+				if strings.Contains(got, tt.absent) {
+					t.Errorf("output contains %q for empty criteria %+v:\n%s", tt.absent, criteria, got)
+				}
+			})
+		}
 	}
 }

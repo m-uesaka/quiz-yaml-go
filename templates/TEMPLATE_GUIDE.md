@@ -24,8 +24,10 @@ type Criteria struct {
 }
 ```
 
-`Criteria` は，YAMLに `criteria` が無い場合や，`criteria` の中身が空の場合は `nil` になります．
-そのため `{{if .Criteria}}...{{end}}` で判定基準の有無によって出力を切り替えられます．
+`Criteria` は，YAMLに `criteria` が無い場合は `nil` になります．
+判定基準の有無で出力を切り替えるときは `{{if .HasCriteria}}...{{end}}` を使ってください．
+`HasCriteria` は，`criteria` が無い場合に加えて，`criteria: {}` や `ok: []` のように中身が空の場合も偽になります．
+（`{{if .Criteria}}` は `criteria` が書かれているかどうかだけを判定するため，中身が空でも真になります．）
 
 ### 判定基準の個別アクセス
 
@@ -38,7 +40,7 @@ type Criteria struct {
 | `{{.Repeat}}` | もう一度 | `criteria.repeat` |
 
 `{{.Criteria.OK}}` / `{{.Criteria.NG}}` / `{{.Criteria.Repeat}}` でも同じ値を参照できますが，
-判定基準が無い問題では `Criteria` が `nil` のためエラーになります．`{{if .Criteria}}` で囲むか，`{{.OK}}` などを使ってください．
+判定基準が無い問題では `Criteria` が `nil` のためエラーになります．`{{if .HasCriteria}}` で囲むか，`{{.OK}}` などを使ってください．
 
 ```text
 {{if .OK}}別解: {{quoteAll .OK ""}}（{{len .OK}}件）{{end}}
@@ -87,7 +89,8 @@ type Criteria struct {
 ### 以前のバージョンからの移行
 
 `Criteria` は以前は `map[string][]string` でしたが，専用の構造体に変わりました．
-`{{formatCriteria .Criteria}}` と `{{if .Criteria}}` はそのまま使えます．
+`{{formatCriteria .Criteria}}` はそのまま使えます．
+`{{if .Criteria}}` もそのまま使えますが，`criteria: {}` のように中身が空の場合に真になるため，`{{if .HasCriteria}}` への書き換えをおすすめします．
 マップのキーで参照していた箇所は，以下のように書き換えてください．
 
 | 以前の書き方 | 現在の書き方 |
@@ -97,6 +100,7 @@ type Criteria struct {
 | `{{.Criteria.repeat}}` | `{{.Repeat}}`（または `{{.Criteria.Repeat}}`） |
 | `{{index .Criteria "ok"}}` | `{{.OK}}` |
 | `{{range $key, $values := .Criteria}}` | `{{.OK}}` / `{{.NG}}` / `{{.Repeat}}` を個別に使用 |
+| `{{if .Criteria}}` | `{{if .HasCriteria}}`（推奨） |
 
 ### HTMLの自動エスケープ
 
@@ -128,7 +132,7 @@ type Criteria struct {
 {{range .Comments}}
 - {{escapeHTML .}}
 {{end}}{{end}}
-{{if .Criteria}}**判定**: {{formatCriteria .Criteria | escapeHTML}}{{end}}
+{{if .HasCriteria}}**判定**: {{formatCriteria .Criteria | escapeHTML}}{{end}}
 
 ---
 {{end}}
@@ -156,7 +160,7 @@ type Criteria struct {
             </ul>
         </div>
         {{end}}
-        {{if .Criteria}}<p><strong>判定:</strong> {{formatCriteria .Criteria}}</p>{{end}}
+        {{if .HasCriteria}}<p><strong>判定:</strong> {{formatCriteria .Criteria}}</p>{{end}}
     </div>
     {{end}}
 </body>
@@ -169,7 +173,7 @@ type Criteria struct {
 問題{{add $index 1}}: {{.Question}}
 答え: {{.Answer}}
 {{if .Spell}}読み: {{.Spell}}{{end}}
-{{if .Criteria}}判定: {{formatCriteria .Criteria}}{{end}}
+{{if .HasCriteria}}判定: {{formatCriteria .Criteria}}{{end}}
 
 {{end}}
 ```
