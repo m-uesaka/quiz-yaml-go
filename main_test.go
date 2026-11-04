@@ -11,13 +11,48 @@ import (
 // exampleYAML はテストで入力に使うYAMLファイル（go testはパッケージのディレクトリで実行される）
 const exampleYAML = "yaml/example.yaml"
 
+// testProg はテストでrunに渡すプログラム名
+const testProg = "quiz-yaml-converter"
+
 // usageHeader はヘルプメッセージの先頭部分
 const usageHeader = "使用法: "
+
+// wantUsage はtestProgで実行したときのヘルプメッセージ全体
+const wantUsage = "使用法: quiz-yaml-converter [オプション]\n" +
+	"\n" +
+	"クイズYAMLファイルを指定されたフォーマットに変換します。\n" +
+	"\n" +
+	"オプション:\n" +
+	"  -format string\n" +
+	"    \t出力フォーマット（csv, html, markdown） (default \"csv\")\n" +
+	"  -help\n" +
+	"    \tヘルプを表示\n" +
+	"  -input string\n" +
+	"    \t入力するYAMLファイルのパス（-markdown-dir未指定時は必須）\n" +
+	"  -markdown-dir string\n" +
+	"    \t集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる）\n" +
+	"  -output string\n" +
+	"    \t出力ファイルのパス（必須）\n" +
+	"  -recursive\n" +
+	"    \t-markdown-dir指定時，サブディレクトリも再帰的に辿るかどうか\n" +
+	"  -template string\n" +
+	"    \tテンプレートファイルのパス（formatに関係なく使用）\n" +
+	"  -validate\n" +
+	"    \tYAMLファイルのフォーマットをバリデーションのみ実行\n" +
+	"\n" +
+	"例:\n" +
+	"  quiz-yaml-converter -input quiz.yaml -output quiz.csv\n" +
+	"  quiz-yaml-converter -input quiz.yaml -output quiz.html -format html\n" +
+	"  quiz-yaml-converter -input quiz.yaml -output quiz.md -template custom.tmpl\n" +
+	"  quiz-yaml-converter -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n" +
+	"  quiz-yaml-converter -input quiz.yaml -validate\n" +
+	"  quiz-yaml-converter -markdown-dir path/to/quiz -output quiz.yaml\n" +
+	"  quiz-yaml-converter -markdown-dir path/to/quiz -recursive -output quiz.yaml\n"
 
 // runCLI はrunを呼び出し，終了コードと標準出力・標準エラー出力の内容を返す
 func runCLI(args ...string) (code int, stdout, stderr string) {
 	var outBuf, errBuf bytes.Buffer
-	code = run(args, &outBuf, &errBuf)
+	code = run(testProg, args, &outBuf, &errBuf)
 	return code, outBuf.String(), errBuf.String()
 }
 
@@ -184,11 +219,9 @@ func TestRun_Help(t *testing.T) {
 			if stdout != "" {
 				t.Errorf("stdout = %q, want empty", stdout)
 			}
-			if !strings.HasPrefix(stderr, usageHeader) {
-				t.Errorf("stderr does not start with %q: %q", usageHeader, stderr)
-			}
-			if !strings.Contains(stderr, "-markdown-dir") {
-				t.Errorf("stderr does not list flags: %q", stderr)
+			// ヘルプが1回だけ，全文どおりに表示されること
+			if stderr != wantUsage {
+				t.Errorf("stderr = %q, want %q", stderr, wantUsage)
 			}
 		})
 	}
@@ -196,35 +229,35 @@ func TestRun_Help(t *testing.T) {
 
 func TestRun_InvalidArguments(t *testing.T) {
 	tests := []struct {
-		name       string
-		args       []string
-		wantPrefix string
+		name    string
+		args    []string
+		wantMsg string
 	}{
 		{
-			name:       "-markdown-dirと-inputの同時指定",
-			args:       []string{"-markdown-dir", "md", "-input", exampleYAML, "-output", "out.yaml"},
-			wantPrefix: "❌ エラー: -markdown-dirと-inputは同時に指定できません\n\n" + usageHeader,
+			name:    "-markdown-dirと-inputの同時指定",
+			args:    []string{"-markdown-dir", "md", "-input", exampleYAML, "-output", "out.yaml"},
+			wantMsg: "❌ エラー: -markdown-dirと-inputは同時に指定できません\n",
 		},
 		{
-			name:       "-markdown-dir指定時に-outputが未指定",
-			args:       []string{"-markdown-dir", "md"},
-			wantPrefix: "❌ エラー: 出力ファイルが指定されていません\n\n" + usageHeader,
+			name:    "-markdown-dir指定時に-outputが未指定",
+			args:    []string{"-markdown-dir", "md"},
+			wantMsg: "❌ エラー: 出力ファイルが指定されていません\n",
 		},
 		{
-			name:       "引数なし",
-			args:       []string{},
-			wantPrefix: "❌ エラー: 入力ファイルが指定されていません\n\n" + usageHeader,
+			name:    "引数なし",
+			args:    []string{},
+			wantMsg: "❌ エラー: 入力ファイルが指定されていません\n",
 		},
 		{
-			name:       "変換時に-outputが未指定",
-			args:       []string{"-input", exampleYAML},
-			wantPrefix: "❌ エラー: 出力ファイルが指定されていません\n\n" + usageHeader,
+			name:    "変換時に-outputが未指定",
+			args:    []string{"-input", exampleYAML},
+			wantMsg: "❌ エラー: 出力ファイルが指定されていません\n",
 		},
 		{
 			name: "未知のフォーマット",
 			args: []string{"-input", exampleYAML, "-output", "out.xml", "-format", "xml"},
-			wantPrefix: "❌ エラー: サポートされていないフォーマットです: xml\n" +
-				"サポートされているフォーマット: csv, html, markdown\n\n" + usageHeader,
+			wantMsg: "❌ エラー: サポートされていないフォーマットです: xml\n" +
+				"サポートされているフォーマット: csv, html, markdown\n",
 		},
 	}
 
@@ -240,8 +273,10 @@ func TestRun_InvalidArguments(t *testing.T) {
 			if stdout != "" {
 				t.Errorf("stdout = %q, want empty", stdout)
 			}
-			if !strings.HasPrefix(stderr, tt.wantPrefix) {
-				t.Errorf("stderr = %q, want prefix %q", stderr, tt.wantPrefix)
+			// エラーメッセージ，空行，ヘルプの順に表示されること
+			want := tt.wantMsg + "\n" + wantUsage
+			if stderr != want {
+				t.Errorf("stderr = %q, want %q", stderr, want)
 			}
 		})
 	}
@@ -258,32 +293,33 @@ func TestRun_UndefinedFlag(t *testing.T) {
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty", stdout)
 	}
-	wantPrefix := "flag provided but not defined: -unknown-flag\n" + usageHeader
-	if !strings.HasPrefix(stderr, wantPrefix) {
-		t.Errorf("stderr = %q, want prefix %q", stderr, wantPrefix)
+	want := "flag provided but not defined: -unknown-flag\n" + wantUsage
+	if stderr != want {
+		t.Errorf("stderr = %q, want %q", stderr, want)
 	}
 }
 
 func TestRun_ConversionErrors(t *testing.T) {
 	tests := []struct {
 		name string
-		args func(dir string) []string
+		// argsはサブテストのtとフィクスチャ用のディレクトリを受け取り，runに渡す引数を返す
+		args func(t *testing.T, dir string) []string
 	}{
 		{
 			name: "入力ファイルが存在しない",
-			args: func(dir string) []string {
+			args: func(_ *testing.T, dir string) []string {
 				return []string{"-input", filepath.Join(dir, "missing.yaml"), "-output", filepath.Join(dir, "quiz.csv")}
 			},
 		},
 		{
 			name: "テンプレートファイルが存在しない",
-			args: func(dir string) []string {
+			args: func(_ *testing.T, dir string) []string {
 				return []string{"-input", exampleYAML, "-output", filepath.Join(dir, "quiz.txt"), "-template", filepath.Join(dir, "missing.tmpl")}
 			},
 		},
 		{
 			name: "Markdownディレクトリの集約に失敗",
-			args: func(dir string) []string {
+			args: func(t *testing.T, dir string) []string {
 				writeFile(t, dir, "broken.md", "## Question\n\n問題文だけ\n")
 				return []string{"-markdown-dir", dir, "-output", filepath.Join(dir, "quiz.yaml")}
 			},
@@ -293,7 +329,7 @@ func TestRun_ConversionErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			args := tt.args(t.TempDir())
+			args := tt.args(t, t.TempDir())
 
 			// Act
 			code, stdout, stderr := runCLI(args...)
