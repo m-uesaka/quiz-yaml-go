@@ -12,9 +12,27 @@ type QuizItem struct {
     Question string             // 問題文
     Answer   string             // 答え
     Spell    string             // 原語表記（英語表記）
+    Tags     []string           // タグ
     Comments []string           // コメント（補足説明など）
     Criteria map[string][]string // 判定基準（ok/ng/repeat）
 }
+```
+
+### 判定基準の個別アクセス
+
+`QuizItem` では，判定基準の各項目に以下の変数でアクセスできます（いずれも `[]string`．該当キーがない場合は空）．
+
+| 変数 | 内容 | 対応するキー |
+|------|------|--------------|
+| `{{.OK}}` | 別解（正解） | `criteria.ok` |
+| `{{.NG}}` | 誤答 | `criteria.ng` |
+| `{{.Repeat}}` | もう一度 | `criteria.repeat` |
+
+```text
+{{if .OK}}別解: {{join .OK "、"}}{{end}}
+{{if .NG}}誤答: {{quoteJoin .NG ""}}{{end}}
+{{range .Repeat}}- {{.}}（もう一度）
+{{end}}
 ```
 
 ### 利用可能なテンプレート関数
@@ -22,6 +40,7 @@ type QuizItem struct {
 | 関数名 | 説明 | 使用例 |
 |--------|------|--------|
 | `formatCriteria` | criteriaを専用形式でフォーマット | `{{formatCriteria .Criteria}}` |
+| `quoteJoin` | 各要素に「」を付けて連結し，末尾に文字列を追加（空なら空文字） | `{{quoteJoin .NG "は誤答"}}` |
 | `addQuotes` | 「」引用符を追加 | `{{addQuotes .Answer}}` |
 | `join` | 文字列スライスを結合 | `{{join .Strings ","}}` |
 | `upper` | 大文字に変換 | `{{upper .Question}}` |

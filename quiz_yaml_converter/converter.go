@@ -30,6 +30,24 @@ type QuizItem struct {
 	Criteria map[string][]string `yaml:"criteria,omitempty"` // 判定基準（ok/ng/repeat）
 }
 
+// 判定基準のうち別解（ok）のリストを返す．
+// テンプレートからは {{.OK}} でアクセスできる．
+func (q QuizItem) OK() []string {
+	return q.Criteria["ok"]
+}
+
+// 判定基準のうち誤答（ng）のリストを返す．
+// テンプレートからは {{.NG}} でアクセスできる．
+func (q QuizItem) NG() []string {
+	return q.Criteria["ng"]
+}
+
+// 判定基準のうちもう一度（repeat）のリストを返す．
+// テンプレートからは {{.Repeat}} でアクセスできる．
+func (q QuizItem) Repeat() []string {
+	return q.Criteria["repeat"]
+}
+
 // テンプレート処理用のデータ構造体
 // 問題データのリストを含む。
 type TemplateData struct {
@@ -51,6 +69,7 @@ const (
 // - "「"で始まっているが"」"で終わっていない場合
 //   - "」"がどこかに含まれている場合はそのまま返す
 //   - 含まれていない場合は"」"を追加して返す
+//
 // - "」"を含むが"「"で始まっていない場合は"「"を追加して返す
 // - どちらも含まれていない場合は"「"と"」"を最初と最後に追加して返す．
 func AddQuotesIfNeeded(item string) string {
@@ -267,6 +286,7 @@ func validateQuizItem(item QuizItem, index int) []string {
 
 	return errors
 }
+
 // 問題データとテンプレートファイルから出力ファイルを生成する．
 // テンプレートはGoのtext/templateパッケージを使用し，日本語クイズフォーマット用のカスタム関数を提供する．
 func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string) error {
@@ -279,6 +299,7 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 	// Create template with custom functions
 	tmpl, err := template.New("quiz").Funcs(template.FuncMap{
 		"formatCriteria": FormatCriteria,
+		"quoteJoin":      formatCriteriaSection,
 		"addQuotes":      AddQuotesIfNeeded,
 		"join":           strings.Join,
 		"upper":          strings.ToUpper,
