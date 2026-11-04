@@ -29,10 +29,18 @@ type QuizItem struct {
 | `{{.Repeat}}` | もう一度 | `criteria.repeat` |
 
 ```text
-{{if .OK}}別解: {{join .OK "、"}}{{end}}
-{{if .NG}}誤答: {{quoteJoin .NG ""}}{{end}}
-{{range .Repeat}}- {{.}}（もう一度）
+{{if .OK}}別解: {{quoteAll .OK ""}}（{{len .OK}}件）{{end}}
+{{if .NG}}誤答: {{quoteAll .NG "は誤答"}}{{end}}
+{{range .Repeat}}- {{addQuotes .}}はもう一度
 {{end}}
+```
+
+出力例（`ok: [正答1, 正答2]`, `ng: [誤答1]`, `repeat: [もう一度1]` の場合）:
+
+```text
+別解: 「正答1」「正答2」（2件）
+誤答: 「誤答1」は誤答
+- 「もう一度1」はもう一度
 ```
 
 ### 利用可能なテンプレート関数
@@ -40,14 +48,14 @@ type QuizItem struct {
 | 関数名 | 説明 | 使用例 |
 |--------|------|--------|
 | `formatCriteria` | criteriaを専用形式でフォーマット | `{{formatCriteria .Criteria}}` |
-| `quoteJoin` | 各要素に「」を付けて連結し，末尾に文字列を追加（空なら空文字） | `{{quoteJoin .NG "は誤答"}}` |
+| `quoteAll` | 各要素に「」を付けて**区切り文字なしで**連結し，第2引数の文字列を末尾に付ける（第2引数は区切り文字ではない．リストが空なら空文字） | `{{quoteAll .NG "は誤答"}}` → `「誤答1」「誤答2」は誤答` |
 | `addQuotes` | 「」引用符を追加 | `{{addQuotes .Answer}}` |
 | `join` | 文字列スライスを結合 | `{{join .Strings ","}}` |
 | `upper` | 大文字に変換 | `{{upper .Question}}` |
 | `lower` | 小文字に変換 | `{{lower .Answer}}` |
 | `replace` | 文字列置換 | `{{replace .Text "old" "new"}}` |
 | `add` | 数値の加算 | `{{add $index 1}}` |
-| `len` | スライスの長さ | `{{len .Items}}` |
+| `len` | スライスの長さ（Go標準） | `{{len .Items}}`, `{{len .OK}}` |
 | `now` | 現在日時 | `{{now}}` |
 
 #### 注意

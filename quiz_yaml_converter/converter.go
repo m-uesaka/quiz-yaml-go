@@ -299,7 +299,7 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 	// Create template with custom functions
 	tmpl, err := template.New("quiz").Funcs(template.FuncMap{
 		"formatCriteria": FormatCriteria,
-		"quoteJoin":      formatCriteriaSection,
+		"quoteAll":       formatCriteriaSection,
 		"addQuotes":      AddQuotesIfNeeded,
 		"join":           strings.Join,
 		"upper":          strings.ToUpper,
@@ -307,9 +307,6 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 		"replace":        strings.ReplaceAll,
 		"add": func(a, b int) int {
 			return a + b
-		},
-		"len": func(slice []QuizItem) int {
-			return len(slice)
 		},
 		"now": func() string {
 			return time.Now().Format("2006年01月02日 15:04:05")

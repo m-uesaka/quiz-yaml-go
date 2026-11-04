@@ -377,14 +377,18 @@ A: 答え2
 				},
 			},
 			templateContent: `{{range .Items}}
-別解: {{join .OK "、"}}
-誤答: {{quoteJoin .NG ""}}
-もう一度: {{quoteJoin .Repeat "はもう一度"}}
+別解: {{quoteAll .OK ""}}
+別解数: {{len .OK}}
+誤答: {{quoteAll .NG ""}}
+もう一度: {{quoteAll .Repeat "はもう一度"}}
+問題数: {{len $.Items}}
 {{end}}`,
 			expectedOutput: `
-別解: 正答1、正答2
+別解: 「正答1」「正答2」
+別解数: 2
 誤答: 「誤答1」
 もう一度: 「もう一度1」はもう一度
+問題数: 1
 `,
 			shouldError: false,
 		},
@@ -393,8 +397,8 @@ A: 答え2
 			data: []QuizItem{
 				{Question: "問題1", Answer: "答え1"},
 			},
-			templateContent: `{{range .Items}}[{{if .OK}}OK{{end}}{{if .NG}}NG{{end}}{{if .Repeat}}R{{end}}{{quoteJoin .NG "は誤答"}}]{{end}}`,
-			expectedOutput:  `[]`,
+			templateContent: `{{range .Items}}[{{if .OK}}OK{{end}}{{if .NG}}NG{{end}}{{if .Repeat}}R{{end}}{{quoteAll .NG "は誤答"}}{{len .Repeat}}]{{end}}`,
+			expectedOutput:  `[0]`,
 			shouldError:     false,
 		},
 		{
