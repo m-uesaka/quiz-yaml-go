@@ -98,6 +98,7 @@ quiz-yaml-go/
 ├── go.mod                     # Go modules設定ファイル
 ├── go.sum                     # 依存関係のチェックサム
 ├── README.md                  # プロジェクト説明（このファイル）
+├── CHANGELOG.md               # 変更履歴とバージョン間の移行方法
 ├── Taskfile.yml               # タスクランナー（Task）の設定
 ├── .gitignore                 # Git除外設定
 ├── quiz_yaml_converter/       # クイズ変換ライブラリパッケージ
@@ -162,3 +163,8 @@ quiz-yaml-go/
 ## YAMLファイルの作成方法
 
 入力用のYAMLファイルの作成方法については、[yaml/YAML_GUIDE.md](yaml/YAML_GUIDE.md)を参照してください。
+
+## 変更履歴
+
+バージョンごとの変更点と、互換性のない変更がある場合の移行方法については、[CHANGELOG.md](CHANGELOG.md)を参照してください。
+v0.x から v1.0.0 に更新する場合は、テンプレートの書き方が一部変わっているため、[移行方法](CHANGELOG.md#v0x-から-v100-への移行)を確認してください。
