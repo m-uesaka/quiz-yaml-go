@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
 	"gopkg.in/yaml.v3"
 )
@@ -248,12 +249,17 @@ func isMarkdownFileEntry(path string, d fs.DirEntry) bool {
 // 再帰的に辿る．
 //
 // 再帰の有無で振る舞いが変わらないように，収集の前に dirPath を確認し，
-// 存在しない場合・ディレクトリでない場合はエラーを返す．存在しない場合のエラーは
-// 元のエラーをラップするため，errors.Is(err, fs.ErrNotExist) で判定できる．
+// 存在しない場合（パスの途中がファイルの場合を含む）・ディレクトリでない場合は
+// エラーを返す．存在しない場合のエラーは元のエラーをラップするため，
+// errors.Is(err, fs.ErrNotExist) で判定できる．
+//
+// dirPath がディレクトリへのシンボリックリンクの場合も辿れるように，
+// リンク先を解決してから1回の filepath.WalkDir で収集する．（再帰しない場合は
+// サブディレクトリを fs.SkipDir で飛ばす．）返すパスは dirPath を起点とする．
 func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 	info, err := os.Stat(dirPath)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) || errors.Is(err, syscall.ENOTDIR) {
 			return nil, fmt.Errorf("Markdownディレクトリが見つかりません: %w", err)
 		}
 		return nil, fmt.Errorf("Markdownディレクトリを確認できません: %w", err)
@@ -261,34 +267,31 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 	if !info.IsDir() {
 		return nil, fmt.Errorf("Markdownディレクトリではありません（ファイルが指定されています）: %s", dirPath)
 	}
-
-	if !recursive {
-		entries, err := os.ReadDir(dirPath)
-		if err != nil {
-			return nil, fmt.Errorf("Markdownディレクトリを読み込めません: %w", err)
-		}
-		var paths []string
-		for _, e := range entries {
-			path := filepath.Join(dirPath, e.Name())
-			if isMarkdownFileEntry(path, e) {
-				paths = append(paths, path)
-			}
-		}
-		return paths, nil
+	root, err := filepath.EvalSymlinks(dirPath)
+	if err != nil {
+		return nil, fmt.Errorf("Markdownディレクトリを確認できません: %w", err)
 	}
 
 	var paths []string
-	err = filepath.WalkDir(dirPath, func(path string, d fs.DirEntry, err error) error {
+	err = filepath.WalkDir(root, func(walked string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
+		if d.IsDir() && walked != root && !recursive {
+			return fs.SkipDir
+		}
+		rel, err := filepath.Rel(root, walked)
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(dirPath, rel)
 		if isMarkdownFileEntry(path, d) {
 			paths = append(paths, path)
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Markdownディレクトリを辿れません: %w", err)
+		return nil, fmt.Errorf("Markdownディレクトリを読み込めません: %w", err)
 	}
 	return paths, nil
 }

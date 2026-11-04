@@ -501,6 +501,44 @@ func TestAggregateMarkdownDir_Recursive(t *testing.T) {
 	}
 }
 
+// ディレクトリへのシンボリックリンクを指定した場合も，再帰の有無にかかわらず
+// リンク先のMarkdownファイルを収集し，パスは指定したリンクを起点とすることを確認する．
+func TestCollectMarkdownFiles_SymlinkRoot(t *testing.T) {
+	for _, recursive := range []bool{false, true} {
+		t.Run(fmt.Sprintf("recursive=%v", recursive), func(t *testing.T) {
+			// Arrange
+			target := t.TempDir()
+			writeTempMarkdown(t, target, "top.md", markdownFixture("TOP"))
+			sub := filepath.Join(target, "sub")
+			if err := os.Mkdir(sub, 0o755); err != nil {
+				t.Fatalf("failed to create subdirectory: %v", err)
+			}
+			writeTempMarkdown(t, sub, "nested.md", markdownFixture("NESTED"))
+			link := filepath.Join(t.TempDir(), "link")
+			if err := os.Symlink(target, link); err != nil {
+				t.Skipf("symlinks are not supported: %v", err)
+			}
+			want := []string{filepath.Join(link, "top.md")}
+			if recursive {
+				want = append(want, filepath.Join(link, "sub", "nested.md"))
+			}
+
+			// Act
+			got, err := collectMarkdownFiles(link, recursive)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			sort.Strings(got)
+			sort.Strings(want)
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("collectMarkdownFiles(recursive=%v) = %v, want %v", recursive, got, want)
+			}
+		})
+	}
+}
+
 func TestAggregateMarkdownDir_PartialFailureReportsFileName(t *testing.T) {
 	dir := t.TempDir()
 	writeTempMarkdown(t, dir, "good.md", markdownFixture("OK"))
@@ -605,6 +643,13 @@ func TestAggregateMarkdownDir_InvalidDirectory(t *testing.T) {
 				return writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え"))
 			},
 			wantMsg: "Markdownディレクトリではありません",
+		},
+		{
+			name: "パスの途中がファイル",
+			path: func(t *testing.T, dir string) string {
+				return filepath.Join(writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え")), "sub")
+			},
+			wantMsg: "Markdownディレクトリが見つかりません",
 		},
 		{
 			name: "空のディレクトリ",
