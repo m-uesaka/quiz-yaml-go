@@ -119,6 +119,7 @@ go build -o quiz-yaml-converter
 
 次のような問題が見つかると，バリデーションは失敗します（終了コード1）．
 
+- クイズデータが1件もない（空のファイルや `[]` のみ）
 - 問題文 (`question`) や答え (`answer`) が空（空白のみを含む）
 - `criteria` の `ok` / `ng` / `repeat`，`comments`，`tags` に空の要素がある
 - `criteria` に `ok` / `ng` / `repeat` 以外のキーがある

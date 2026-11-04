@@ -49,8 +49,7 @@ func ConvertWithWarnings(yamlFilePath, outputFilePath, templateFilePath string) 
 
 	switch format {
 	case FormatCSV:
-		// ConvertYAMLToCSV はファイルパスを受け取るため，YAMLファイルをもう一度読み込む
-		return warnings, ConvertYAMLToCSV(yamlFilePath, outputFilePath)
+		return warnings, writeCSV(data, outputFilePath)
 	case FormatTemplate:
 		return warnings, ConvertToTemplate(data, templateFilePath, outputFilePath)
 	default:

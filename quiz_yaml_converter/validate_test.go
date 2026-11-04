@@ -191,8 +191,6 @@ func TestValidateItemsValid(t *testing.T) {
 		name  string
 		items []QuizItem
 	}{
-		{name: "nil", items: nil},
-		{name: "empty slice", items: []QuizItem{}},
 		{name: "required fields only", items: []QuizItem{{Question: "問題", Answer: "答え"}}},
 		{
 			name: "all fields",
@@ -227,6 +225,16 @@ func TestValidateItemsInvalid(t *testing.T) {
 		items []QuizItem
 		want  []ValidationError
 	}{
+		{
+			name:  "nil",
+			items: nil,
+			want:  []ValidationError{{Message: "YAMLファイルにクイズデータが含まれていません"}},
+		},
+		{
+			name:  "empty slice",
+			items: []QuizItem{},
+			want:  []ValidationError{{Message: "YAMLファイルにクイズデータが含まれていません"}},
+		},
 		{
 			name:  "empty question",
 			items: []QuizItem{{Question: "", Answer: "答え"}},

@@ -66,6 +66,13 @@ func TestConvertWithWarnings(t *testing.T) {
 			wantContent:  "問題",
 		},
 		{
+			name:         "empty list to CSV",
+			content:      "[]\n",
+			outputName:   "quiz.csv",
+			wantWarnings: []ValidationError{{Message: "YAMLファイルにクイズデータが含まれていません"}},
+			wantContent:  "question,answer,spell,criteria",
+		},
+		{
 			name:         "empty question with template",
 			content:      "- question: \"\"\n  answer: 答え\n  tags: [\"\"]\n",
 			outputName:   "quiz.txt",

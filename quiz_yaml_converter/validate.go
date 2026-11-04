@@ -67,14 +67,9 @@ func ValidateYAMLFile(yamlFilePath string) ValidationResult {
 
 	result.Items = len(data)
 
-	// 各アイテムのバリデーション
+	// 各アイテムのバリデーション（データが空であることの確認を含む）
 	for _, e := range ValidateItems(data) {
 		result.addError(e)
-	}
-
-	// 配列が空でないことを確認
-	if len(data) == 0 {
-		result.addError(ValidationError{Message: "YAMLファイルにクイズデータが含まれていません"})
 	}
 
 	return result
@@ -85,12 +80,15 @@ func ValidateYAMLFile(yamlFilePath string) ValidationResult {
 // 変換時やMarkdownの集約時にも使える．
 //
 // 次の内容を確認する．
+//   - クイズデータが1件以上ある（空の場合は Item が0のエラーを1件返す）
 //   - 問題文 (question) と答え (answer) が空でない（空白のみも空とみなす）
 //   - criteria の ok / ng / repeat，comments，tags に空の要素が無い
 //   - criteria に ok / ng / repeat 以外のキーが無い（LoadYAMLData で読み込んだデータでは常に無い）
-//
-// itemsが空の場合もnilを返す（ファイルが空であることの確認は ValidateYAMLFile で行う）．
 func ValidateItems(items []QuizItem) []ValidationError {
+	if len(items) == 0 {
+		return []ValidationError{{Message: "YAMLファイルにクイズデータが含まれていません"}}
+	}
+
 	var errs []ValidationError
 	for i, item := range items {
 		errs = append(errs, validateQuizItem(item, i+1)...)
