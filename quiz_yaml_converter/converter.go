@@ -9,11 +9,12 @@ package quiz_yaml_converter
 import (
 	"encoding/csv"
 	"fmt"
+	htmltemplate "html/template"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
+	texttemplate "text/template"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -288,7 +289,7 @@ func validateQuizItem(item QuizItem, index int) []string {
 }
 
 // 問題データとテンプレートファイルから出力ファイルを生成する．
-// テンプレートはGoのtext/templateパッケージを使用し，日本語クイズフォーマット用のカスタム関数を提供する．
+// .htmlテンプレートにはhtml/templateを使用し，それ以外にはtext/templateを使用する．
 func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string) error {
 	// Read template file
 	templateContent, err := os.ReadFile(templateFilePath)
@@ -297,7 +298,7 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 	}
 
 	// Create template with custom functions
-	tmpl, err := template.New("quiz").Funcs(template.FuncMap{
+	funcs := map[string]any{
 		"formatCriteria": FormatCriteria,
 		"quoteAll":       formatCriteriaSection,
 		"addQuotes":      AddQuotesIfNeeded,
@@ -311,9 +312,20 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 		"now": func() string {
 			return time.Now().Format("2006年01月02日 15:04:05")
 		},
-	}).Parse(string(templateContent))
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+	}
+	var executeTemplate func(io.Writer, any) error
+	if filepath.Ext(templateFilePath) == ".html" {
+		tmpl, err := htmltemplate.New("quiz").Funcs(htmltemplate.FuncMap(funcs)).Parse(string(templateContent))
+		if err != nil {
+			return fmt.Errorf("failed to parse template: %w", err)
+		}
+		executeTemplate = tmpl.Execute
+	} else {
+		tmpl, err := texttemplate.New("quiz").Funcs(texttemplate.FuncMap(funcs)).Parse(string(templateContent))
+		if err != nil {
+			return fmt.Errorf("failed to parse template: %w", err)
+		}
+		executeTemplate = tmpl.Execute
 	}
 
 	// Create output file
@@ -325,7 +337,7 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 
 	// Execute template
 	templateData := TemplateData{Items: data}
-	err = tmpl.Execute(outputFile, templateData)
+	err = executeTemplate(outputFile, templateData)
 	if err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}

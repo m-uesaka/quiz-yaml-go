@@ -464,6 +464,54 @@ A: 答え2
 	}
 }
 
+func TestConvertToTemplateEscapesHTMLOnly(t *testing.T) {
+	tempDir := t.TempDir()
+	data := []QuizItem{{
+		Question: `<script>alert("x")</script> &`,
+		Criteria: map[string][]string{"ok": {"A&B <b>"}},
+	}}
+	templateContent := `{{range .Items}}<p>{{.Question}}</p><p>{{formatCriteria .Criteria}}</p>{{end}}`
+
+	tests := []struct {
+		name           string
+		extension      string
+		expectedOutput string
+	}{
+		{
+			name:           "HTML template escapes values",
+			extension:      ".html",
+			expectedOutput: `<p>&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; &amp;</p><p>「A&amp;B &lt;b&gt;」</p>`,
+		},
+		{
+			name:           "non-HTML template preserves text output",
+			extension:      ".md",
+			expectedOutput: `<p><script>alert("x")</script> &</p><p>「A&B <b>」</p>`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			templateFile := filepath.Join(tempDir, "template"+tt.extension)
+			outputFile := filepath.Join(tempDir, "output"+tt.extension)
+			if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+				t.Fatalf("Failed to create template file: %v", err)
+			}
+
+			if err := ConvertToTemplate(data, templateFile, outputFile); err != nil {
+				t.Fatalf("ConvertToTemplate() error = %v", err)
+			}
+
+			outputContent, err := os.ReadFile(outputFile)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+			if string(outputContent) != tt.expectedOutput {
+				t.Errorf("ConvertToTemplate() output = %q, want %q", string(outputContent), tt.expectedOutput)
+			}
+		})
+	}
+}
+
 func TestQuizItemCriteriaAccessors(t *testing.T) {
 	tests := []struct {
 		name           string
