@@ -1,7 +1,10 @@
 package quiz_yaml_converter
 
 import (
+	"reflect"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestAddQuotesIfNeeded(t *testing.T) {
@@ -209,6 +212,227 @@ func TestCriteriaIsEmpty(t *testing.T) {
 			// Assert
 			if result != tt.expected {
 				t.Errorf("(%+v).IsEmpty() = %v, want %v", tt.criteria, result, tt.expected)
+			}
+		})
+	}
+}
+
+// << で取り込んだ内容が ok / ng / repeat のみの場合，マージ結果が読み込まれ，不正なキーが記録されないことを確認する．
+func TestCriteriaUnmarshalYAMLValidMerge(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    []Criteria
+	}{
+		{
+			name: "alias of a custom field",
+			content: `- question: Q1
+  common: &b
+    ok: [foo]
+  criteria:
+    <<: *b
+    ng: [x]
+`,
+			want: []Criteria{{OK: []string{"foo"}, NG: []string{"x"}}},
+		},
+		{
+			name: "sequence of aliases",
+			content: `- question: Q1
+  a: &a
+    ok: [foo]
+  b: &b
+    repeat: [bar]
+  criteria:
+    <<: [*a, *b]
+`,
+			want: []Criteria{{OK: []string{"foo"}, Repeat: []string{"bar"}}},
+		},
+		{
+			name: "nested merge",
+			content: `- question: Q1
+  base: &base
+    ng: [x]
+  mid: &mid
+    <<: *base
+    ok: [foo]
+  criteria:
+    <<: *mid
+`,
+			want: []Criteria{{OK: []string{"foo"}, NG: []string{"x"}}},
+		},
+		{
+			name: "inline mapping",
+			content: `- question: Q1
+  criteria:
+    <<: {ok: [foo]}
+`,
+			want: []Criteria{{OK: []string{"foo"}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			var items []QuizItem
+
+			// Act
+			err := yaml.Unmarshal([]byte(tt.content), &items)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+			if len(items) != len(tt.want) {
+				t.Fatalf("len(items) = %d, want %d", len(items), len(tt.want))
+			}
+			for i, want := range tt.want {
+				if items[i].Criteria == nil {
+					t.Fatalf("items[%d].Criteria = nil, want %+v", i, want)
+				}
+				if !reflect.DeepEqual(*items[i].Criteria, want) {
+					t.Errorf("items[%d].Criteria = %+v, want %+v", i, *items[i].Criteria, want)
+				}
+			}
+		})
+	}
+}
+
+// << で取り込んだ内容に ok / ng / repeat 以外のキーがある場合，取り込んだ側のキーの行番号とともに記録されることを確認する．
+func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    [][]unknownCriteriaKey // 問題ごとの不正なキー
+	}{
+		{
+			name: "alias of a custom field (issue #37)",
+			content: `- question: Q1
+  answer: A1
+  common: &b
+    okk: [foo]
+  criteria:
+    <<: *b
+    ng: [x]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 4, merged: true}}},
+		},
+		{
+			name: "sequence of aliases with a typo in one",
+			content: `- question: Q1
+  a: &a
+    ok: [foo]
+  b: &b
+    rpeat: [bar]
+  criteria:
+    <<: [*a, *b]
+`,
+			want: [][]unknownCriteriaKey{{{name: "rpeat", line: 5, merged: true}}},
+		},
+		{
+			name: "nested merge with a typo in the inner anchor",
+			content: `- question: Q1
+  base: &base
+    ngg: [x]
+  mid: &mid
+    <<: *base
+    ok: [foo]
+  criteria:
+    <<: *mid
+`,
+			want: [][]unknownCriteriaKey{{{name: "ngg", line: 3, merged: true}}},
+		},
+		{
+			name: "inline mapping",
+			content: `- question: Q1
+  criteria:
+    <<: {okk: [foo]}
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3, merged: true}}},
+		},
+		{
+			name: "direct unknown keys are recorded before merged ones",
+			content: `- question: Q1
+  common: &b
+    okk: [foo]
+  criteria:
+    maybe: [m]
+    <<: *b
+    close: [c]
+`,
+			want: [][]unknownCriteriaKey{{{name: "maybe", line: 5}, {name: "close", line: 7}, {name: "okk", line: 3, merged: true}}},
+		},
+		{
+			name: "same mapping reached twice is recorded once",
+			content: `- question: Q1
+  a: &a
+    okk: [foo]
+  b: &b
+    <<: *a
+    ng: [x]
+  criteria:
+    <<: [*a, *b]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3, merged: true}}},
+		},
+		{
+			name: "same key written directly and merged is recorded once as the direct one",
+			content: `- question: Q1
+  common: &b
+    okk: [a]
+  criteria:
+    <<: *b
+    okk: [b]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 6}}},
+		},
+		{
+			name: "same key in two merged mappings is recorded once as the earlier one",
+			content: `- question: Q1
+  a: &a
+    okk: [a]
+  b: &b
+    okk: [b]
+  criteria:
+    <<: [*a, *b]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3, merged: true}}},
+		},
+		{
+			name: "anchor on another item's criteria is reported for each item",
+			content: `- question: Q1
+  criteria: &common
+    okk: [foo]
+- question: Q2
+  criteria:
+    <<: *common
+    ng: [x]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3}}, {{name: "okk", line: 3, merged: true}}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			var items []QuizItem
+
+			// Act
+			err := yaml.Unmarshal([]byte(tt.content), &items)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("yaml.Unmarshal() error = %v", err)
+			}
+			if len(items) != len(tt.want) {
+				t.Fatalf("len(items) = %d, want %d", len(items), len(tt.want))
+			}
+			for i, want := range tt.want {
+				if items[i].Criteria == nil {
+					t.Fatalf("items[%d].Criteria = nil, want unknown keys %+v", i, want)
+				}
+				if !reflect.DeepEqual(items[i].Criteria.unknownKeys, want) {
+					t.Errorf("items[%d].Criteria.unknownKeys = %+v, want %+v", i, items[i].Criteria.unknownKeys, want)
+				}
 			}
 		})
 	}
