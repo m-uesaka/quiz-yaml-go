@@ -9,9 +9,15 @@ on:
 permissions:
   contents: read
 
+# 同じブランチ・PRで新しい実行が始まったら，古い実行を取り消す
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       # チェックアウト
       - uses: actions/checkout@v7
@@ -27,12 +33,6 @@ jobs:
         with:
           version: 3.x
 
-      # ローカルの `task ci` と同じチェックを実行
-      - name: Check format
-        run: task fmt-check
-
-      - name: Vet
-        run: task vet
-
-      - name: Test
-        run: task test
+      # ローカルと同じ `task ci` を実行する（チェックの内容は Taskfile.yml で管理する）
+      - name: Run checks
+        run: task ci

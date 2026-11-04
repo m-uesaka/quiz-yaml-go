@@ -67,13 +67,14 @@ CI（`.github/workflows/ci.yml`）も同じタスクを実行しています。
 # タスクの一覧を表示
 task
 
-# CIと同じチェック（gofmt・go vet・go test）をまとめて実行
+# CIと同じチェック（gofmt・go mod tidy・go vet・go test）をまとめて実行
 task ci
 
 # 個別に実行
-task fmt-check  # gofmtで整形されていないファイルがあれば失敗
-task vet        # go vet ./...
-task test       # go test ./...
+task fmt-check       # gofmtで整形されていないファイルがあれば失敗
+task vet             # go vet ./...
+task mod-tidy-check  # go.mod / go.sum が go mod tidy 済みでなければ失敗
+task test            # go test -race -cover ./...
 
 # gofmtでコードを整形
 task fmt

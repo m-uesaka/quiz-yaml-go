@@ -8,6 +8,7 @@ on:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write # これがないとリリースを作成できない
     steps:
@@ -21,6 +22,15 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+
+      # Task をインストール
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      # CIと同じチェックを通ったコミットだけをリリースする
+      - name: Run checks
+        run: task ci
 
       # リリース
       - uses: goreleaser/goreleaser-action@v7
