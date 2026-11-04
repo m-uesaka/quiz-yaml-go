@@ -341,18 +341,16 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	// Create output file
-	outputFile, err := os.Create(outputFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer outputFile.Close()
-
-	// Execute template
+	// テンプレートの実行が途中で失敗した場合に既存の出力ファイルを壊さないよう，
+	// 一度メモリ上に出力してから，成功した場合のみファイルに書き込む．
+	var buf bytes.Buffer
 	templateData := TemplateData{Items: data}
-	err = tmpl.Execute(outputFile, templateData)
-	if err != nil {
+	if err := tmpl.Execute(&buf, templateData); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
+	}
+
+	if err := os.WriteFile(outputFilePath, buf.Bytes(), 0o644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
 	}
 
 	return nil

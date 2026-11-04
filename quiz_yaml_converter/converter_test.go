@@ -622,6 +622,41 @@ func TestQuizItemCriteriaAccessors(t *testing.T) {
 	}
 }
 
+// テンプレートの実行に失敗した場合，既存の出力ファイルが上書きされないことを確認する．
+func TestConvertToTemplate_ExecutionErrorKeepsExistingOutput(t *testing.T) {
+	// Arrange
+	tempDir := t.TempDir()
+	templateFile := filepath.Join(tempDir, "template.csv")
+	outputFile := filepath.Join(tempDir, "output.csv")
+	existing := "existing,content\n"
+	if err := os.WriteFile(outputFile, []byte(existing), 0644); err != nil {
+		t.Fatalf("Failed to create output file: %v", err)
+	}
+	// ヘッダ行の出力後，csvRowに[]stringを渡して実行時エラーにする
+	templateContent := `{{csvRow "question" "tags"}}
+{{range .Items}}{{csvRow .Question .Tags}}
+{{end}}`
+	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+	data := []QuizItem{{Question: "問題1", Answer: "答え1", Tags: []string{"tag"}}}
+
+	// Act
+	err := ConvertToTemplate(data, templateFile, outputFile)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error, but got nil")
+	}
+	got, readErr := os.ReadFile(outputFile)
+	if readErr != nil {
+		t.Fatalf("Failed to read output file: %v", readErr)
+	}
+	if string(got) != existing {
+		t.Errorf("output file = %q, want unchanged %q", string(got), existing)
+	}
+}
+
 func TestDetectOutputFormat(t *testing.T) {
 	tests := []struct {
 		name         string
