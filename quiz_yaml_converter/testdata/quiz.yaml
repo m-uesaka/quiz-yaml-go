@@ -1,0 +1,36 @@
+# 組み込みテンプレートのスナップショットテスト（template_test.go）用のフィクスチャ．
+# このファイルを変更した場合は `go test ./quiz_yaml_converter -run TestBuiltinTemplateSnapshot -update` で
+# testdata/*.golden を更新する．
+- question: すべての項目を持つ問題
+  answer: 答え1
+  spell: answer one
+  tags:
+    - tag1
+  comments:
+    - コメント1
+    - コメント2
+  criteria:
+    ok:
+      - 別解1
+      - 「別解2」
+    ng:
+      - 誤答1
+    repeat:
+      - もう一度1
+- question: 判定基準もコメントもない問題
+  answer: 答え2
+  spell: ""
+- question: "<b>HTML</b> & \"記号\", カンマを含む問題"
+  answer: "<i>答え3</i>"
+  spell: "spell & <3>"
+  comments:
+    - "<script>alert(1)</script>"
+  criteria:
+    ng:
+      - "A&B"
+- question: "改行を\n含む問題"
+  answer: 答え4
+  spell: ""
+  criteria:
+    repeat:
+      - えんががわ（読みが違うのでもう一度）
