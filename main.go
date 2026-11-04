@@ -17,147 +17,155 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter" // Import the quiz YAML converter package
 )
 
+// outputFormat は -format で指定できる出力フォーマット1つ分の設定を表す
+type outputFormat struct {
+	// template は組み込みテンプレートのパス（空文字の場合はテンプレートを使わずにCSVを出力する）
+	template string
+	// label は完了メッセージに表示するフォーマット名
+	label string
+}
+
+// outputFormats は -format の値と出力フォーマットの対応表
+var outputFormats = map[string]outputFormat{
+	"csv":      {template: "", label: "CSV"},
+	"html":     {template: "templates/quiz_template.html", label: "HTML"},
+	"markdown": {template: "templates/quiz_template.md", label: "Markdown"},
+	"md":       {template: "templates/quiz_template.md", label: "Markdown"},
+}
+
 func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// run はコマンドライン引数argsを解析して処理を実行し，終了コードを返す
+func run(args []string, stdout, stderr io.Writer) int {
+	prog := filepath.Base(os.Args[0])
+	fs := flag.NewFlagSet(prog, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+
 	// フラグの定義
 	var (
-		inputFile   = flag.String("input", "", "入力するYAMLファイルのパス（-markdown-dir未指定時は必須）")
-		markdownDir = flag.String("markdown-dir", "", "集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる）")
-		recursive   = flag.Bool("recursive", false, "-markdown-dir指定時，サブディレクトリも再帰的に辿るかどうか")
-		outputFile  = flag.String("output", "", "出力ファイルのパス（必須）")
-		format      = flag.String("format", "csv", "出力フォーマット（csv, html, markdown）")
-		template    = flag.String("template", "", "テンプレートファイルのパス（formatに関係なく使用）")
-		validate    = flag.Bool("validate", false, "YAMLファイルのフォーマットをバリデーションのみ実行")
-		help        = flag.Bool("help", false, "ヘルプを表示")
+		inputFile   = fs.String("input", "", "入力するYAMLファイルのパス（-markdown-dir未指定時は必須）")
+		markdownDir = fs.String("markdown-dir", "", "集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる）")
+		recursive   = fs.Bool("recursive", false, "-markdown-dir指定時，サブディレクトリも再帰的に辿るかどうか")
+		outputFile  = fs.String("output", "", "出力ファイルのパス（必須）")
+		format      = fs.String("format", "csv", "出力フォーマット（csv, html, markdown）")
+		template    = fs.String("template", "", "テンプレートファイルのパス（formatに関係なく使用）")
+		validate    = fs.Bool("validate", false, "YAMLファイルのフォーマットをバリデーションのみ実行")
+		help        = fs.Bool("help", false, "ヘルプを表示")
 	)
 
 	// ヘルプメッセージをカスタマイズ
-	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, "使用法: %s [オプション]\n\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "クイズYAMLファイルを指定されたフォーマットに変換します。\n\n")
-		fmt.Fprintf(os.Stderr, "オプション:\n")
-		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "\n例:\n")
-		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.csv\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -validate\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "  %s -markdown-dir path/to/quiz -output quiz.yaml\n", filepath.Base(os.Args[0]))
-		fmt.Fprintf(os.Stderr, "  %s -markdown-dir path/to/quiz -recursive -output quiz.yaml\n", filepath.Base(os.Args[0]))
+	fs.Usage = func() {
+		fmt.Fprintf(stderr, "使用法: %s [オプション]\n\n", prog)
+		fmt.Fprintf(stderr, "クイズYAMLファイルを指定されたフォーマットに変換します。\n\n")
+		fmt.Fprintf(stderr, "オプション:\n")
+		fs.PrintDefaults()
+		fmt.Fprintf(stderr, "\n例:\n")
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.csv\n", prog)
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", prog)
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", prog)
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n", prog)
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -validate\n", prog)
+		fmt.Fprintf(stderr, "  %s -markdown-dir path/to/quiz -output quiz.yaml\n", prog)
+		fmt.Fprintf(stderr, "  %s -markdown-dir path/to/quiz -recursive -output quiz.yaml\n", prog)
 	}
 
-	// フラグをパース
-	flag.Parse()
+	// usageError は引数のエラーを表示してからヘルプを表示し，終了コード1を返す
+	usageError := func(format string, a ...any) int {
+		fmt.Fprintf(stderr, "❌ エラー: "+format+"\n", a...)
+		fs.Usage()
+		return 1
+	}
+
+	// failure は処理中のエラーを表示し，終了コード1を返す
+	failure := func(err error) int {
+		fmt.Fprintf(stderr, "❌ エラー: %v\n", err)
+		return 1
+	}
+
+	// フラグをパース（エラーメッセージとヘルプはflagパッケージが表示する）
+	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return 0
+		}
+		return 2
+	}
 
 	// ヘルプフラグがセットされている場合
 	if *help {
-		flag.Usage()
-		return
+		fs.Usage()
+		return 0
 	}
 
 	// Markdown→YAML集約モードの場合
 	if *markdownDir != "" {
 		if *inputFile != "" {
-			fmt.Fprintf(os.Stderr, "❌ エラー: -markdown-dirと-inputは同時に指定できません\n\n")
-			flag.Usage()
-			os.Exit(1)
+			return usageError("-markdown-dirと-inputは同時に指定できません\n")
 		}
 		if *outputFile == "" {
-			fmt.Fprintf(os.Stderr, "❌ エラー: 出力ファイルが指定されていません\n\n")
-			flag.Usage()
-			os.Exit(1)
+			return usageError("出力ファイルが指定されていません\n")
 		}
-		err := quiz_yaml_converter.ConvertMarkdownDirToYAML(*markdownDir, *outputFile, *recursive)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
-			os.Exit(1)
+		if err := quiz_yaml_converter.ConvertMarkdownDirToYAML(*markdownDir, *outputFile, *recursive); err != nil {
+			return failure(err)
 		}
-		fmt.Printf("✅ Markdown集約完了: %s → %s\n", *markdownDir, *outputFile)
-		return
+		fmt.Fprintf(stdout, "✅ Markdown集約完了: %s → %s\n", *markdownDir, *outputFile)
+		return 0
 	}
 
 	// 必須パラメータの検証
 	if *inputFile == "" {
-		fmt.Fprintf(os.Stderr, "❌ エラー: 入力ファイルが指定されていません\n\n")
-		flag.Usage()
-		os.Exit(1)
+		return usageError("入力ファイルが指定されていません\n")
 	}
 
 	// バリデーションのみの場合
 	if *validate {
-		fmt.Printf("🔍 YAMLファイルをバリデーションしています: %s\n", *inputFile)
+		fmt.Fprintf(stdout, "🔍 YAMLファイルをバリデーションしています: %s\n", *inputFile)
 		result := quiz_yaml_converter.ValidateYAMLFile(*inputFile)
 
-		if result.IsValid {
-			fmt.Printf("✅ バリデーション成功: %d問のクイズデータが正しく読み込めました\n", result.Items)
-		} else {
-			fmt.Printf("❌ バリデーション失敗: %d個のエラーが見つかりました\n", len(result.Errors))
+		if !result.IsValid {
+			fmt.Fprintf(stdout, "❌ バリデーション失敗: %d個のエラーが見つかりました\n", len(result.Errors))
 			for _, err := range result.Errors {
-				fmt.Fprintf(os.Stderr, "  • %s\n", err)
+				fmt.Fprintf(stderr, "  • %s\n", err)
 			}
-			os.Exit(1)
+			return 1
 		}
-		return
+		fmt.Fprintf(stdout, "✅ バリデーション成功: %d問のクイズデータが正しく読み込めました\n", result.Items)
+		return 0
 	}
 
 	// 変換モードの場合は出力ファイルが必須
 	if *outputFile == "" {
-		fmt.Fprintf(os.Stderr, "❌ エラー: 出力ファイルが指定されていません\n\n")
-		flag.Usage()
-		os.Exit(1)
+		return usageError("出力ファイルが指定されていません\n")
 	}
 
 	// テンプレートファイルが指定されている場合はテンプレート変換を実行
 	if *template != "" {
-		err := quiz_yaml_converter.Convert(*inputFile, *outputFile, *template)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
-			os.Exit(1)
+		if err := quiz_yaml_converter.Convert(*inputFile, *outputFile, *template); err != nil {
+			return failure(err)
 		}
-		fmt.Printf("✅ テンプレート変換完了: %s + %s → %s\n", *inputFile, *template, *outputFile)
-		return
+		fmt.Fprintf(stdout, "✅ テンプレート変換完了: %s + %s → %s\n", *inputFile, *template, *outputFile)
+		return 0
 	}
 
 	// フォーマットに基づいて変換処理を実行
-	switch *format {
-	case "csv":
-		err := quiz_yaml_converter.Convert(*inputFile, *outputFile, "")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("✅ CSV変換完了: %s → %s\n", *inputFile, *outputFile)
-
-	case "html":
-		templatePath := "templates/quiz_template.html"
-		err := quiz_yaml_converter.Convert(*inputFile, *outputFile, templatePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("✅ HTML変換完了: %s → %s\n", *inputFile, *outputFile)
-
-	case "markdown", "md":
-		templatePath := "templates/quiz_template.md"
-		err := quiz_yaml_converter.Convert(*inputFile, *outputFile, templatePath)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "❌ エラー: %v\n", err)
-			os.Exit(1)
-		}
-		fmt.Printf("✅ Markdown変換完了: %s → %s\n", *inputFile, *outputFile)
-
-	default:
-		fmt.Fprintf(os.Stderr, "❌ エラー: サポートされていないフォーマットです: %s\n", *format)
-		fmt.Fprintf(os.Stderr, "サポートされているフォーマット: csv, html, markdown\n\n")
-		flag.Usage()
-		os.Exit(1)
+	f, ok := outputFormats[*format]
+	if !ok {
+		return usageError("サポートされていないフォーマットです: %s\nサポートされているフォーマット: csv, html, markdown\n", *format)
 	}
+	if err := quiz_yaml_converter.Convert(*inputFile, *outputFile, f.template); err != nil {
+		return failure(err)
+	}
+	fmt.Fprintf(stdout, "✅ %s変換完了: %s → %s\n", f.label, *inputFile, *outputFile)
+	return 0
 }
