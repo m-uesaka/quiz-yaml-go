@@ -49,6 +49,8 @@ type QuizItem struct {
 |--------|------|--------|
 | `formatCriteria` | criteriaを専用形式でフォーマット | `{{formatCriteria .Criteria}}` |
 | `quoteAll` | 各要素に「」を付けて**区切り文字なしで**連結し，第2引数の文字列を末尾に付ける（第2引数は区切り文字ではない．リストが空なら空文字） | `{{quoteAll .NG "は誤答"}}` → `「誤答1」「誤答2」は誤答` |
+| `csvRow` | 引数を1行分のCSVレコードに整形（カンマ・`"`・改行を含む値は自動でクォート．末尾の改行は含まない） | `{{csvRow .Question .Answer}}` |
+| `csvField` | 1つの値をCSVのフィールドとしてエスケープ | `{{csvField .Question}}` |
 | `addQuotes` | 「」引用符を追加 | `{{addQuotes .Answer}}` |
 | `join` | 文字列スライスを結合 | `{{join .Strings ","}}` |
 | `upper` | 大文字に変換 | `{{upper .Question}}` |
@@ -130,10 +132,33 @@ type QuizItem struct {
 {{end}}
 ```
 
+#### CSVテンプレート
+
+CSVもテンプレートで列の構成や順序を変えられます．値にカンマ・ダブルクォート・改行が含まれていても壊れないよう，`csvRow`（または`csvField`）を使って出力してください．
+
+`templates/quiz_template.csv` は，テンプレートを使わない場合のCSV出力と同じ内容を出力します．
+
+```text
+{{csvRow "question" "answer" "spell" "criteria"}}
+{{range .Items}}{{csvRow .Question .Answer .Spell (formatCriteria .Criteria)}}
+{{end -}}
+```
+
+列を変えたい場合の例（番号・答え・別解・タグ）:
+
+```text
+{{csvRow "no" "answer" "ok" "tags"}}
+{{range $i, $item := .Items}}{{csvRow (printf "%d" (add $i 1)) .Answer (quoteAll .OK "") (join .Tags " ")}}
+{{end -}}
+```
+
+- `{{end -}}` の `-` は，最後の行のあとに余分な空行が出力されないようにするためのものです．
+- `csvRow` の引数はすべて文字列です．数値は `printf "%d"` で文字列に変換してください．
+
 ## 出力形式の自動判定
 
-- `.csv`拡張子 → CSV形式で出力
-- テンプレートファイル指定時 → テンプレート形式で出力  
+- テンプレートファイル指定時 → テンプレート形式で出力（拡張子が`.csv`でもテンプレートが優先されます）
+- `.csv`拡張子 → 組み込みのCSV形式で出力
 - その他の拡張子 → テンプレート形式で出力
 
 ## 実用例
