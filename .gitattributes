@@ -1,3 +1,5 @@
 # テンプレートの改行コードは出力にそのまま反映されるため，OSに関係なくLFに固定する
 templates/** text eol=lf
 *.csv text eol=lf
+# スナップショットテストのフィクスチャとgoldenファイルも，OSに関係なくLFに固定する
+quiz_yaml_converter/testdata/** text eol=lf

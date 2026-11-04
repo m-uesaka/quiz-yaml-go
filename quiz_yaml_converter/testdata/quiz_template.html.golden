@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クイズ問題集</title>
+    <style>
+        body { font-family: 'Hiragino Sans', sans-serif; margin: 40px; }
+        .quiz-item { margin-bottom: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .question { font-weight: bold; color: #333; margin-bottom: 10px; }
+        .answer { color: #007700; margin-bottom: 10px; }
+        .spell { color: #666; font-style: italic; margin-bottom: 10px; }
+        .comments { color: #555; margin-bottom: 10px; }
+        .comments ul { margin: 5px 0; padding-left: 20px; }
+        .criteria { color: #cc0000; font-size: 0.9em; }
+        .stats { margin-top: 40px; padding: 20px; background: #f5f5f5; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>🧠 クイズ問題集</h1>
+    
+    
+    <div class="quiz-item">
+        <div class="question">
+            <strong>Q1:</strong> すべての項目を持つ問題
+        </div>
+        <div class="answer">
+            <strong>A:</strong> 答え1
+        </div>
+        
+        <div class="spell">
+            <strong>読み:</strong> answer one
+        </div>
+        
+        
+        <div class="comments">
+            <strong>コメント:</strong>
+            <ul>
+                
+                <li>コメント1</li>
+                
+                <li>コメント2</li>
+                
+            </ul>
+        </div>
+        
+        
+        <div class="criteria">
+            <strong>判定:</strong> 「別解1」「別解2」／「誤答1」は誤答／「もう一度1」はもう一度
+        </div>
+        
+    </div>
+    
+    <div class="quiz-item">
+        <div class="question">
+            <strong>Q2:</strong> 判定基準もコメントもない問題
+        </div>
+        <div class="answer">
+            <strong>A:</strong> 答え2
+        </div>
+        
+        
+        
+    </div>
+    
+    <div class="quiz-item">
+        <div class="question">
+            <strong>Q3:</strong> &lt;b&gt;HTML&lt;/b&gt; &amp; &#34;記号&#34;, カンマを含む問題
+        </div>
+        <div class="answer">
+            <strong>A:</strong> &lt;i&gt;答え3&lt;/i&gt;
+        </div>
+        
+        <div class="spell">
+            <strong>読み:</strong> spell &amp; &lt;3&gt;
+        </div>
+        
+        
+        <div class="comments">
+            <strong>コメント:</strong>
+            <ul>
+                
+                <li>&lt;script&gt;alert(1)&lt;/script&gt;</li>
+                
+            </ul>
+        </div>
+        
+        
+        <div class="criteria">
+            <strong>判定:</strong> 「A&amp;B」は誤答
+        </div>
+        
+    </div>
+    
+    <div class="quiz-item">
+        <div class="question">
+            <strong>Q4:</strong> 改行を
+含む問題
+        </div>
+        <div class="answer">
+            <strong>A:</strong> 答え4
+        </div>
+        
+        
+        
+        <div class="criteria">
+            <strong>判定:</strong> 「えんががわ（読みが違うのでもう一度）」はもう一度
+        </div>
+        
+    </div>
+    
+    
+    <div class="stats">
+        <h2>📊 統計</h2>
+        <p>総問題数: <strong>4</strong>問</p>
+        <p>生成日時: YYYY年MM月DD日 hh:mm:ss</p>
+    </div>
+</body>
+</html>
