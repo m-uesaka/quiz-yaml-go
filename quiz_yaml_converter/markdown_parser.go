@@ -189,8 +189,10 @@ func ParseMarkdownFile(mdFilePath string) (QuizItem, error) {
 		return QuizItem{}, fmt.Errorf("failed to read markdown file: %w", err)
 	}
 
-	// 改行コードの正規化はここで1回だけ行い，以降の処理は "\n" のみを扱う．
-	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
+	// 入力の正規化はここで1回だけ行い，以降の処理は BOM なし・"\n" 改行の文字列のみを扱う．
+	// Windowsのメモ帳などで保存したファイルは先頭にUTF-8のBOMが付き，改行がCRLFになることがある．
+	content := strings.TrimPrefix(string(raw), "\ufeff")
+	content = strings.ReplaceAll(content, "\r\n", "\n")
 
 	fmText, body, err := splitFrontmatter(content)
 	if err != nil {
@@ -224,6 +226,22 @@ func isMarkdownFile(name string) bool {
 	return strings.EqualFold(filepath.Ext(name), ".md")
 }
 
+// isMarkdownFileEntry はディレクトリのエントリが読み込み対象のMarkdownファイルかどうかを返す．
+// 拡張子が ".md" でも，ディレクトリと，ディレクトリを指すシンボリックリンクは対象外にする．
+// （fs.DirEntry.IsDir はシンボリックリンクのリンク先を見ないため，リンクの場合は os.Stat で確認する．
+// リンク切れなどで確認できない場合は対象に含め，読み込み時のエラーとして報告する．）
+func isMarkdownFileEntry(path string, d fs.DirEntry) bool {
+	if d.IsDir() || !isMarkdownFile(d.Name()) {
+		return false
+	}
+	if d.Type()&fs.ModeSymlink != 0 {
+		if info, err := os.Stat(path); err == nil && info.IsDir() {
+			return false
+		}
+	}
+	return true
+}
+
 // collectMarkdownFiles はdirPath以下のMarkdownファイル（拡張子が ".md"．
 // 大文字・小文字は区別しない）のパス一覧を返す．ディレクトリは拡張子に
 // かかわらず対象外とする．recursiveがtrueの場合はサブディレクトリも
@@ -236,8 +254,9 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 		}
 		var paths []string
 		for _, e := range entries {
-			if !e.IsDir() && isMarkdownFile(e.Name()) {
-				paths = append(paths, filepath.Join(dirPath, e.Name()))
+			path := filepath.Join(dirPath, e.Name())
+			if isMarkdownFileEntry(path, e) {
+				paths = append(paths, path)
 			}
 		}
 		return paths, nil
@@ -248,7 +267,7 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && isMarkdownFile(d.Name()) {
+		if isMarkdownFileEntry(path, d) {
 			paths = append(paths, path)
 		}
 		return nil
