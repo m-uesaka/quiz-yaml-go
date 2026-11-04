@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -298,6 +299,112 @@ func TestConvertYAMLToCSV(t *testing.T) {
 	}
 }
 
+func TestCSVRow(t *testing.T) {
+	tests := []struct {
+		name     string
+		fields   []string
+		expected string
+	}{
+		{name: "plain fields", fields: []string{"a", "b", "c"}, expected: "a,b,c"},
+		{name: "japanese text", fields: []string{"問題", "「答え」"}, expected: "問題,「答え」"},
+		{name: "field with comma", fields: []string{"a,b", "c"}, expected: `"a,b",c`},
+		{name: "field with double quote", fields: []string{`say "hi"`}, expected: `"say ""hi"""`},
+		{name: "field with newline", fields: []string{"line1\nline2", "x"}, expected: "\"line1\nline2\",x"},
+		{name: "empty fields", fields: []string{"", ""}, expected: ","},
+		{name: "no fields", fields: []string{}, expected: ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			result, err := CSVRow(tt.fields...)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("CSVRow(%q) error = %v", tt.fields, err)
+			}
+			if result != tt.expected {
+				t.Errorf("CSVRow(%q) = %q, want %q", tt.fields, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestCSVField(t *testing.T) {
+	tests := []struct {
+		name     string
+		field    string
+		expected string
+	}{
+		{name: "plain", field: "abc", expected: "abc"},
+		{name: "with comma", field: "a,b", expected: `"a,b"`},
+		{name: "with double quote", field: `a"b`, expected: `"a""b"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			result, err := CSVField(tt.field)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("CSVField(%q) error = %v", tt.field, err)
+			}
+			if result != tt.expected {
+				t.Errorf("CSVField(%q) = %q, want %q", tt.field, result, tt.expected)
+			}
+		})
+	}
+}
+
+// 組み込みCSVテンプレートの出力が，テンプレートを使わないCSV変換と一致することを確認する．
+func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
+	// Arrange
+	tempDir := t.TempDir()
+	yamlFile := filepath.Join(tempDir, "quiz.yaml")
+	yamlContent := `- question: "カンマ, を含む問題"
+  answer: "\"引用符\"を含む答え"
+  spell: spell
+  criteria:
+    ok:
+      - 別解1
+    ng:
+      - 誤答1
+    repeat:
+      - もう一度1
+- question: "改行を\n含む問題"
+  answer: 答え2
+  spell: ""
+`
+	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
+		t.Fatalf("Failed to create YAML file: %v", err)
+	}
+	defaultCSV := filepath.Join(tempDir, "default.csv")
+	templateCSV := filepath.Join(tempDir, "template.csv")
+	templateFile := filepath.Join("..", "templates", "quiz_template.csv")
+
+	// Act
+	if err := Convert(yamlFile, defaultCSV, ""); err != nil {
+		t.Fatalf("Convert() without template error = %v", err)
+	}
+	if err := Convert(yamlFile, templateCSV, templateFile); err != nil {
+		t.Fatalf("Convert() with template error = %v", err)
+	}
+
+	// Assert
+	want, err := os.ReadFile(defaultCSV)
+	if err != nil {
+		t.Fatalf("Failed to read default CSV: %v", err)
+	}
+	got, err := os.ReadFile(templateCSV)
+	if err != nil {
+		t.Fatalf("Failed to read template CSV: %v", err)
+	}
+	if string(got) != string(want) {
+		t.Errorf("template CSV output = %q, want %q", string(got), string(want))
+	}
+}
+
 func TestConvertToTemplate(t *testing.T) {
 	tempDir := t.TempDir()
 
@@ -465,34 +572,33 @@ A: 答え2
 }
 
 func TestConvertToTemplateEscapesHTMLOnly(t *testing.T) {
-	tempDir := t.TempDir()
 	data := []QuizItem{{
 		Question: `<script>alert("x")</script> &`,
 		Criteria: map[string][]string{"ok": {"A&B <b>"}},
 	}}
 	templateContent := `{{range .Items}}<p>{{.Question}}</p><p>{{formatCriteria .Criteria}}</p>{{end}}`
+	escaped := `<p>&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; &amp;</p><p>「A&amp;B &lt;b&gt;」</p>`
+	raw := `<p><script>alert("x")</script> &</p><p>「A&B <b>」</p>`
 
 	tests := []struct {
 		name           string
-		extension      string
+		templateExt    string
+		outputExt      string
 		expectedOutput string
 	}{
-		{
-			name:           "HTML template escapes values",
-			extension:      ".html",
-			expectedOutput: `<p>&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt; &amp;</p><p>「A&amp;B &lt;b&gt;」</p>`,
-		},
-		{
-			name:           "non-HTML template preserves text output",
-			extension:      ".md",
-			expectedOutput: `<p><script>alert("x")</script> &</p><p>「A&B <b>」</p>`,
-		},
+		{name: ".html template escapes values", templateExt: ".html", outputExt: ".html", expectedOutput: escaped},
+		{name: ".htm template escapes values", templateExt: ".htm", outputExt: ".txt", expectedOutput: escaped},
+		{name: "upper-case .HTML template escapes values", templateExt: ".HTML", outputExt: ".txt", expectedOutput: escaped},
+		{name: ".xhtml template escapes values", templateExt: ".xhtml", outputExt: ".txt", expectedOutput: escaped},
+		{name: "HTML output escapes values even with a non-HTML template", templateExt: ".tmpl", outputExt: ".Htm", expectedOutput: escaped},
+		{name: "non-HTML template and output preserve text", templateExt: ".md", outputExt: ".md", expectedOutput: raw},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			templateFile := filepath.Join(tempDir, "template"+tt.extension)
-			outputFile := filepath.Join(tempDir, "output"+tt.extension)
+			tempDir := t.TempDir()
+			templateFile := filepath.Join(tempDir, "template"+tt.templateExt)
+			outputFile := filepath.Join(tempDir, "output"+tt.outputExt)
 			if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
 				t.Fatalf("Failed to create template file: %v", err)
 			}
@@ -509,6 +615,105 @@ func TestConvertToTemplateEscapesHTMLOnly(t *testing.T) {
 				t.Errorf("ConvertToTemplate() output = %q, want %q", string(outputContent), tt.expectedOutput)
 			}
 		})
+	}
+}
+
+func TestConvertToTemplateSafeHTMLAndEscapeHTML(t *testing.T) {
+	data := []QuizItem{{
+		Question: `a<b`,
+		Comments: []string{"x&y", "z"},
+	}}
+	templateContent := `{{range .Items}}{{escapeHTML .Question}}|{{join .Comments "<br>" | safeHTML}}{{end}}`
+
+	tests := []struct {
+		ext            string
+		expectedOutput string
+	}{
+		// HTMLモードでもescapeHTMLは二重エスケープされず，safeHTMLはエスケープされない．
+		{ext: ".html", expectedOutput: `a&lt;b|x&y<br>z`},
+		{ext: ".md", expectedOutput: `a&lt;b|x&y<br>z`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ext, func(t *testing.T) {
+			tempDir := t.TempDir()
+			templateFile := filepath.Join(tempDir, "template"+tt.ext)
+			outputFile := filepath.Join(tempDir, "output"+tt.ext)
+			if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+				t.Fatalf("Failed to create template file: %v", err)
+			}
+
+			if err := ConvertToTemplate(data, templateFile, outputFile); err != nil {
+				t.Fatalf("ConvertToTemplate() error = %v", err)
+			}
+
+			outputContent, err := os.ReadFile(outputFile)
+			if err != nil {
+				t.Fatalf("Failed to read output file: %v", err)
+			}
+			if string(outputContent) != tt.expectedOutput {
+				t.Errorf("output = %q, want %q", string(outputContent), tt.expectedOutput)
+			}
+		})
+	}
+}
+
+func TestConvertToTemplateHTMLEscapeErrorKeepsExistingOutput(t *testing.T) {
+	tempDir := t.TempDir()
+	templateFile := filepath.Join(tempDir, "template.html")
+	outputFile := filepath.Join(tempDir, "output.html")
+	// 分岐ごとに終了時のコンテキストが異なるため，html/templateはExecute時にエラーを返す．
+	templateContent := `{{range .Items}}{{if .Spell}}<span title="{{end}}{{.Question}}{{end}}`
+	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+	const existing = "existing output"
+	if err := os.WriteFile(outputFile, []byte(existing), 0644); err != nil {
+		t.Fatalf("Failed to create output file: %v", err)
+	}
+
+	err := ConvertToTemplate([]QuizItem{{Question: "q", Spell: "s"}}, templateFile, outputFile)
+	if err == nil {
+		t.Fatal("ConvertToTemplate() expected an error, got nil")
+	}
+
+	outputContent, readErr := os.ReadFile(outputFile)
+	if readErr != nil {
+		t.Fatalf("Failed to read output file: %v", readErr)
+	}
+	if string(outputContent) != existing {
+		t.Errorf("output file was modified: got %q, want %q", string(outputContent), existing)
+	}
+}
+
+func TestBuiltinMarkdownTemplateEscapesHTML(t *testing.T) {
+	tempDir := t.TempDir()
+	outputFile := filepath.Join(tempDir, "output.md")
+	data := []QuizItem{{
+		Question: `<img src=x onerror=alert(1)>`,
+		Answer:   "<b>答え</b>",
+		Comments: []string{"<i>c</i>"},
+		Criteria: map[string][]string{"ok": {"<u>別解</u>"}},
+	}}
+
+	if err := ConvertToTemplate(data, filepath.Join("..", "templates", "quiz_template.md"), outputFile); err != nil {
+		t.Fatalf("ConvertToTemplate() error = %v", err)
+	}
+
+	outputContent, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatalf("Failed to read output file: %v", err)
+	}
+	output := string(outputContent)
+	for _, raw := range []string{"<img", "<b>", "<i>", "<u>"} {
+		if strings.Contains(output, raw) {
+			t.Errorf("output contains unescaped %q:\n%s", raw, output)
+		}
+	}
+	for _, want := range []string{"&lt;img src=x onerror=alert(1)&gt;", "&lt;b&gt;答え&lt;/b&gt;", "&lt;i&gt;c&lt;/i&gt;", "&lt;u&gt;別解&lt;/u&gt;"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("output does not contain %q:\n%s", want, output)
+		}
 	}
 }
 
@@ -561,6 +766,41 @@ func TestQuizItemCriteriaAccessors(t *testing.T) {
 				t.Errorf("Repeat() = %v, want %v", repeat, tt.expectedRepeat)
 			}
 		})
+	}
+}
+
+// テンプレートの実行に失敗した場合，既存の出力ファイルが上書きされないことを確認する．
+func TestConvertToTemplate_ExecutionErrorKeepsExistingOutput(t *testing.T) {
+	// Arrange
+	tempDir := t.TempDir()
+	templateFile := filepath.Join(tempDir, "template.csv")
+	outputFile := filepath.Join(tempDir, "output.csv")
+	existing := "existing,content\n"
+	if err := os.WriteFile(outputFile, []byte(existing), 0644); err != nil {
+		t.Fatalf("Failed to create output file: %v", err)
+	}
+	// ヘッダ行の出力後，csvRowに[]stringを渡して実行時エラーにする
+	templateContent := `{{csvRow "question" "tags"}}
+{{range .Items}}{{csvRow .Question .Tags}}
+{{end}}`
+	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("Failed to create template file: %v", err)
+	}
+	data := []QuizItem{{Question: "問題1", Answer: "答え1", Tags: []string{"tag"}}}
+
+	// Act
+	err := ConvertToTemplate(data, templateFile, outputFile)
+
+	// Assert
+	if err == nil {
+		t.Fatal("Expected error, but got nil")
+	}
+	got, readErr := os.ReadFile(outputFile)
+	if readErr != nil {
+		t.Fatalf("Failed to read output file: %v", readErr)
+	}
+	if string(got) != existing {
+		t.Errorf("output file = %q, want unchanged %q", string(got), existing)
 	}
 }
 

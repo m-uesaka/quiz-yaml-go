@@ -122,6 +122,9 @@ quiz-yaml-go/
 # カスタムテンプレートを使用
 ./quiz-yaml-converter -input data/quiz.yaml -output output/custom.txt -template templates/custom.tmpl
 
+# テンプレートを使ってCSVの列構成をカスタマイズ
+./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.csv -template templates/quiz_template.csv
+
 # Markdownディレクトリを1つのYAMLファイルに集約
 ./quiz-yaml-converter -markdown-dir data/quiz -output output/quiz.yaml
 

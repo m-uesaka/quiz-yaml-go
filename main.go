@@ -48,6 +48,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.csv\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -input quiz.yaml -validate\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -markdown-dir path/to/quiz -output quiz.yaml\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "  %s -markdown-dir path/to/quiz -recursive -output quiz.yaml\n", filepath.Base(os.Args[0]))

@@ -3,14 +3,14 @@
 {{range $index, $item := .Items}}
 ## Question {{add $index 1}}
 
-{{with .Comments}}**Comments:** {{join . ", "}}{{end}}
+{{with .Comments}}**Comments:** {{join . ", " | escapeHTML}}{{end}}
 
-**Q:** {{.Question}}
+**Q:** {{escapeHTML .Question}}
 
-**Answer:** {{.Answer}}
+**Answer:** {{escapeHTML .Answer}}
 
 {{if .Criteria}}
-**Criteria:** {{formatCriteria .Criteria}}
+**Criteria:** {{formatCriteria .Criteria | escapeHTML}}
 {{end}}
 
 ---
