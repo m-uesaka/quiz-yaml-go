@@ -1,0 +1,49 @@
+# https://taskfile.dev
+version: "3"
+
+tasks:
+  default:
+    desc: タスクの一覧を表示する
+    cmds:
+      - task --list
+    silent: true
+
+  vet:
+    desc: go vet で静的解析を行う
+    cmds:
+      - go vet ./...
+
+  test:
+    desc: 全てのテストを実行する（競合状態の検出とカバレッジの表示を含む）
+    cmds:
+      - go test -race -cover ./...
+
+  fmt:
+    desc: gofmt でコードを整形する
+    cmds:
+      - gofmt -w .
+
+  fmt-check:
+    desc: gofmt で整形されていないファイルがあれば失敗する
+    cmds:
+      - |
+        files="$(gofmt -l .)"
+        if [ -n "$files" ]; then
+          echo "gofmt で整形されていないファイルがあります（task fmt で整形できます）:"
+          echo "$files"
+          exit 1
+        fi
+
+  mod-tidy-check:
+    desc: go.mod / go.sum が go mod tidy 済みでなければ失敗する
+    cmds:
+      # go mod tidy -diff はファイルを変更せず，差分があれば表示して失敗する（Go 1.23以降）
+      - go mod tidy -diff
+
+  ci:
+    desc: CIと同じチェック（fmt-check, mod-tidy-check, vet, test）を実行する
+    cmds:
+      - task: fmt-check
+      - task: mod-tidy-check
+      - task: vet
+      - task: test

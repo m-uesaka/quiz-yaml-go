@@ -1,0 +1,38 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+# 同じブランチ・PRで新しい実行が始まったら，古い実行を取り消す
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      # チェックアウト
+      - uses: actions/checkout@v7
+
+      # Go をセットアップ
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      # Task をインストール
+      - uses: go-task/setup-task@v2
+        with:
+          version: 3.x
+
+      # ローカルと同じ `task ci` を実行する（チェックの内容は Taskfile.yml で管理する）
+      - name: Run checks
+        run: task ci
