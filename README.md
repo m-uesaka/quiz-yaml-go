@@ -102,10 +102,17 @@ quiz-yaml-go/
 ├── Taskfile.yml               # タスクランナー（Task）の設定
 ├── .gitignore                 # Git除外設定
 ├── quiz_yaml_converter/       # クイズ変換ライブラリパッケージ
-│   ├── converter.go           # メイン変換ロジック
-│   ├── converter_test.go      # テストファイル
+│   ├── doc.go                 # パッケージの説明
+│   ├── model.go               # データモデル（QuizItem, TemplateData, OutputFormat）
+│   ├── criteria.go            # 判定基準（Criteria）の読み込みとフォーマット
+│   ├── csv.go                 # CSVの整形とYAML→CSV変換
+│   ├── template.go            # テンプレート処理（HTMLモードの判定を含む）
+│   ├── validate.go            # YAMLファイルのバリデーション
+│   ├── yaml_io.go             # YAMLファイルの読み書きとMarkdown→YAML変換
+│   ├── convert.go             # 出力形式の判定と変換のエントリーポイント
 │   ├── markdown_parser.go     # Markdown→QuizItem変換ロジック
-│   └── markdown_parser_test.go # テストファイル
+│   ├── *_test.go              # 各ファイルに対応するテストファイル
+│   └── testdata/              # テスト用のデータ（テンプレートのスナップショットなど）
 └── templates/                 # テンプレートファイル用ディレクトリ
     ├── TEMPLATE_GUIDE.md      # テンプレート作成ガイド
     ├── quiz_template.html     # HTML出力用テンプレート
