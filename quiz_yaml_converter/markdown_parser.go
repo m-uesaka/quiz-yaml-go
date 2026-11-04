@@ -4,6 +4,7 @@
 package quiz_yaml_converter
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -15,12 +16,10 @@ import (
 )
 
 // frontmatter部分のみを表す構造体．
-// Title / Date はパース対象だがQuizItemには対応フィールドが無いため，
-// パース後は意図的に破棄する（title/dateを保持する要件は無い）．
+// title / date などQuizItemに対応フィールドが無いキーは，yaml.v3が未知の
+// フィールドとして無視するため定義しない．
 type quizFrontmatter struct {
-	Title string   `yaml:"title"`
-	Date  string   `yaml:"date"`
-	Tags  []string `yaml:"tags"`
+	Tags []string `yaml:"tags"`
 }
 
 // markdownSections はMarkdown本文から抽出した各セクションの内容を保持する．
@@ -35,9 +34,10 @@ type markdownSections struct {
 }
 
 // splitFrontmatter は "---" で囲まれたfrontmatterと本文を分離する．
+// contentの改行コードは "\n" に正規化済みであることを前提とする．
 func splitFrontmatter(content string) (frontmatter, body string, err error) {
 	const delim = "---"
-	lines := strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n")
+	lines := strings.Split(content, "\n")
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != delim {
 		return "", "", fmt.Errorf("frontmatterが見つかりません（先頭が'---'ではありません）")
 	}
@@ -106,7 +106,8 @@ func parseParagraphs(lines []string) []string {
 
 // parseMarkdownSections はfrontmatterを除いたMarkdown本文を
 // Question / Answer / Spell / Criteria(OK/NG/Close) / Comment の
-// 各セクションに分割する．
+// 各セクションに分割する．bodyの改行コードは "\n" に正規化済みであることを
+// 前提とする．
 func parseMarkdownSections(body string) (markdownSections, error) {
 	const (
 		sectionNone = iota
@@ -123,8 +124,7 @@ func parseMarkdownSections(body string) (markdownSections, error) {
 	buffers := map[int][]string{}
 	current := sectionNone
 
-	lines := strings.Split(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
-	for _, line := range lines {
+	for _, line := range strings.Split(body, "\n") {
 		switch {
 		case strings.HasPrefix(line, "### "):
 			switch strings.TrimSpace(strings.TrimPrefix(line, "### ")) {
@@ -189,7 +189,10 @@ func ParseMarkdownFile(mdFilePath string) (QuizItem, error) {
 		return QuizItem{}, fmt.Errorf("failed to read markdown file: %w", err)
 	}
 
-	fmText, body, err := splitFrontmatter(string(raw))
+	// 改行コードの正規化はここで1回だけ行い，以降の処理は "\n" のみを扱う．
+	content := strings.ReplaceAll(string(raw), "\r\n", "\n")
+
+	fmText, body, err := splitFrontmatter(content)
 	if err != nil {
 		return QuizItem{}, fmt.Errorf("%s: %w", mdFilePath, err)
 	}
@@ -215,13 +218,27 @@ func ParseMarkdownFile(mdFilePath string) (QuizItem, error) {
 	return item, nil
 }
 
-// collectMarkdownFiles はdirPath以下の*.mdファイルのパス一覧を返す．
-// recursiveがtrueの場合はサブディレクトリも再帰的に辿る．
+// isMarkdownFile はファイル名の拡張子が ".md" かどうかを，大文字・小文字を
+// 区別せずに判定する．再帰の有無にかかわらず同じ規則で判定するために使う．
+func isMarkdownFile(name string) bool {
+	return strings.EqualFold(filepath.Ext(name), ".md")
+}
+
+// collectMarkdownFiles はdirPath以下のMarkdownファイル（拡張子が ".md"．
+// 大文字・小文字は区別しない）のパス一覧を返す．ディレクトリは拡張子に
+// かかわらず対象外とする．recursiveがtrueの場合はサブディレクトリも
+// 再帰的に辿る．
 func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 	if !recursive {
-		paths, err := filepath.Glob(filepath.Join(dirPath, "*.md"))
+		entries, err := os.ReadDir(dirPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed to glob markdown files: %w", err)
+			return nil, fmt.Errorf("failed to read markdown directory: %w", err)
+		}
+		var paths []string
+		for _, e := range entries {
+			if !e.IsDir() && isMarkdownFile(e.Name()) {
+				paths = append(paths, filepath.Join(dirPath, e.Name()))
+			}
 		}
 		return paths, nil
 	}
@@ -231,7 +248,7 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 		if err != nil {
 			return err
 		}
-		if !d.IsDir() && strings.EqualFold(filepath.Ext(path), ".md") {
+		if !d.IsDir() && isMarkdownFile(d.Name()) {
 			paths = append(paths, path)
 		}
 		return nil
@@ -246,6 +263,10 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 // QuizItemのスライスとして返す．ファイル名でソートすることで，実行するたびに
 // 出力順序が安定するようにする．recursiveがtrueの場合はサブディレクトリも
 // 再帰的に辿る．
+//
+// 一部のファイルの変換に失敗した場合は，変換できたQuizItemと，各ファイルの
+// エラーを errors.Join で集約したエラーの両方を返す．呼び出し側は errors.Is /
+// errors.As で個々のエラーを扱える．
 func AggregateMarkdownDir(dirPath string, recursive bool) ([]QuizItem, error) {
 	paths, err := collectMarkdownFiles(dirPath, recursive)
 	if err != nil {
@@ -254,17 +275,17 @@ func AggregateMarkdownDir(dirPath string, recursive bool) ([]QuizItem, error) {
 	sort.Strings(paths)
 
 	items := make([]QuizItem, 0, len(paths))
-	var errs []string
+	var errs []error
 	for _, p := range paths {
 		item, err := ParseMarkdownFile(p)
 		if err != nil {
-			errs = append(errs, err.Error())
+			errs = append(errs, err)
 			continue
 		}
 		items = append(items, item)
 	}
 	if len(errs) > 0 {
-		return items, fmt.Errorf("一部のファイルの変換に失敗しました:\n%s", strings.Join(errs, "\n"))
+		return items, fmt.Errorf("一部のファイルの変換に失敗しました:\n%w", errors.Join(errs...))
 	}
 	return items, nil
 }
