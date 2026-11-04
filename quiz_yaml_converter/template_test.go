@@ -3,15 +3,21 @@ package quiz_yaml_converter
 import (
 	"bytes"
 	"flag"
+	htmltemplate "html/template"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"testing"
 )
 
 // -update を指定すると，組み込みテンプレートのスナップショット（testdata/*.golden）を現在の出力で更新する．
 //
 //	go test ./quiz_yaml_converter -run TestBuiltinTemplateSnapshot -update
+//
+// -update はこのパッケージのテストにだけ定義されているため，パッケージを指定して実行する．
+// `go test ./... -update` とすると，-update を定義していないほかのパッケージのテストが
+// "flag provided but not defined" で失敗する．
 var update = flag.Bool("update", false, "update golden files in testdata")
 
 // テンプレートを実行して出力を文字列で返すテスト用の補助関数．
@@ -28,6 +34,7 @@ func executeTemplate(t *testing.T, content string, htmlMode bool, items []QuizIt
 
 // 個別アクセサ（.OK / .NG / .Repeat）とquoteAllで組み立てたテンプレートの出力が，
 // formatCriteriaの出力と一致することを確認する．
+// HTMLモードでは，どちらの出力もhtml/templateでエスケープした FormatCriteria() と一致することを確認する．
 func TestAccessorsWithQuoteAllMatchFormatCriteria(t *testing.T) {
 	// formatCriteriaと同じく，空でないセクションだけを「／」で区切って連結する．
 	const accessorTemplate = `{{range .Items}}{{$sep := ""}}` +
@@ -65,13 +72,23 @@ func TestAccessorsWithQuoteAllMatchFormatCriteria(t *testing.T) {
 				"repeat": {"えんががわ（読みが違うのでもう一度）"},
 			},
 		},
+		{
+			name: "HTML special characters",
+			criteria: map[string][]string{
+				"ok":     {"A&B", "<b>太字</b>"},
+				"ng":     {`"引用"`, "it's"},
+				"repeat": {"1+1>1"},
+			},
+		},
 	}
 	modes := []struct {
 		name     string
 		htmlMode bool
+		// FormatCriteria() の出力を，そのモードでテンプレートが出力する形に変換する．
+		escape func(t *testing.T, s string) string
 	}{
-		{name: "text", htmlMode: false},
-		{name: "html", htmlMode: true},
+		{name: "text", htmlMode: false, escape: func(_ *testing.T, s string) string { return s }},
+		{name: "html", htmlMode: true, escape: htmlEscapeLikeTemplate},
 	}
 
 	for _, mode := range modes {
@@ -83,6 +100,7 @@ func TestAccessorsWithQuoteAllMatchFormatCriteria(t *testing.T) {
 				// Act
 				got, err := executeTemplate(t, accessorTemplate, mode.htmlMode, items)
 				want, wantErr := executeTemplate(t, formatCriteriaTemplate, mode.htmlMode, items)
+				expected := mode.escape(t, FormatCriteria(tt.criteria))
 
 				// Assert
 				if err != nil || wantErr != nil {
@@ -91,12 +109,23 @@ func TestAccessorsWithQuoteAllMatchFormatCriteria(t *testing.T) {
 				if got != want {
 					t.Errorf("accessor template output = %q, formatCriteria output = %q", got, want)
 				}
-				if want != FormatCriteria(tt.criteria) {
-					t.Errorf("formatCriteria template output = %q, FormatCriteria() = %q", want, FormatCriteria(tt.criteria))
+				if want != expected {
+					t.Errorf("formatCriteria template output = %q, want %q", want, expected)
 				}
 			})
 		}
 	}
+}
+
+// 文字列をhtml/templateのHTMLテキストの文脈と同じ規則でエスケープする．
+func htmlEscapeLikeTemplate(t *testing.T, s string) string {
+	t.Helper()
+	tmpl := htmltemplate.Must(htmltemplate.New("escape").Parse(`{{.}}`))
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, s); err != nil {
+		t.Fatalf("failed to escape %q: %v", s, err)
+	}
+	return buf.String()
 }
 
 // quoteAllの第2引数（suffix）が空文字の場合と，リストがnil・空の場合の組み合わせを確認する．
@@ -142,17 +171,18 @@ func TestQuoteAllSuffixAndNilListCombinations(t *testing.T) {
 	}
 }
 
-// quoteAllに不正な引数を渡した場合，テンプレートの実行がエラーになることを確認する．
+// quoteAllに不正な引数を渡した場合，引数の型・数に関するエラーでテンプレートの実行が失敗することを確認する．
 func TestQuoteAllInvalidArguments(t *testing.T) {
 	tests := []struct {
 		name     string
 		template string
+		wantErr  string
 	}{
-		{name: "string instead of list", template: `{{range .Items}}{{quoteAll .Answer ""}}{{end}}`},
-		{name: "map instead of list", template: `{{range .Items}}{{quoteAll .Criteria ""}}{{end}}`},
-		{name: "missing suffix", template: `{{range .Items}}{{quoteAll .OK}}{{end}}`},
-		{name: "non-string suffix", template: `{{range .Items}}{{quoteAll .OK 1}}{{end}}`},
-		{name: "too many arguments", template: `{{range .Items}}{{quoteAll .OK "" ""}}{{end}}`},
+		{name: "string instead of list", template: `{{range .Items}}{{quoteAll .Answer ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got string"},
+		{name: "map instead of list", template: `{{range .Items}}{{quoteAll .Criteria ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got map[string][]string"},
+		{name: "missing suffix", template: `{{range .Items}}{{quoteAll .OK}}{{end}}`, wantErr: "wrong number of args for quoteAll: want 2 got 1"},
+		{name: "non-string suffix", template: `{{range .Items}}{{quoteAll .OK 1}}{{end}}`, wantErr: "expected string; found 1"},
+		{name: "too many arguments", template: `{{range .Items}}{{quoteAll .OK "" ""}}{{end}}`, wantErr: "wrong number of args for quoteAll: want 2 got 3"},
 	}
 
 	for _, tt := range tests {
@@ -165,7 +195,10 @@ func TestQuoteAllInvalidArguments(t *testing.T) {
 
 			// Assert
 			if err == nil {
-				t.Errorf("Execute(%q) expected an error, got nil", tt.template)
+				t.Fatalf("Execute(%q) expected an error, got nil", tt.template)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Execute(%q) error = %q, want it to contain %q", tt.template, err.Error(), tt.wantErr)
 			}
 		})
 	}
@@ -226,9 +259,11 @@ func TestAccessorsWorkWithTemplateFuncs(t *testing.T) {
 
 // 組み込みテンプレートの出力をtestdata/*.goldenと比較するスナップショットテスト．
 // 生成日時（now）は実行ごとに変わるため，比較前に固定の文字列に置き換える．
+// 置き換えるのはHTMLテンプレートの「生成日時: 」の直後だけで，問題文などに含まれる同じ形式の日時は置き換えない．
+// TODO(#32): nowの時刻を差し替えられるようになったら，固定の時刻を渡してこの置き換えをなくす．
 func TestBuiltinTemplateSnapshot(t *testing.T) {
-	nowPattern := regexp.MustCompile(`\d{4}年\d{2}月\d{2}日 \d{2}:\d{2}:\d{2}`)
-	const nowPlaceholder = "YYYY年MM月DD日 hh:mm:ss"
+	nowPattern := regexp.MustCompile(`(<p>生成日時: )\d{4}年\d{2}月\d{2}日 \d{2}:\d{2}:\d{2}(</p>)`)
+	const nowReplacement = "${1}YYYY年MM月DD日 hh:mm:ss${2}"
 
 	tests := []struct {
 		name       string
@@ -257,7 +292,7 @@ func TestBuiltinTemplateSnapshot(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to read output file: %v", err)
 			}
-			got := nowPattern.ReplaceAllString(string(output), nowPlaceholder)
+			got := nowPattern.ReplaceAllString(string(output), nowReplacement)
 
 			// Assert
 			if *update {
