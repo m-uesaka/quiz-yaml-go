@@ -62,13 +62,3 @@ func SaveYAMLData(items []QuizItem, yamlFilePath string) error {
 	}
 	return nil
 }
-
-// ConvertMarkdownDirToYAML はMarkdownディレクトリを1つのYAMLファイルに集約する
-// エントリーポイント．recursiveがtrueの場合はサブディレクトリも再帰的に辿る．
-func ConvertMarkdownDirToYAML(mdDirPath, yamlFilePath string, recursive bool) error {
-	items, err := AggregateMarkdownDir(mdDirPath, recursive)
-	if err != nil {
-		return err
-	}
-	return SaveYAMLData(items, yamlFilePath)
-}

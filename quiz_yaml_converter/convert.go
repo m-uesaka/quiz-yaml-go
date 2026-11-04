@@ -44,3 +44,13 @@ func Convert(yamlFilePath, outputFilePath, templateFilePath string) error {
 		return fmt.Errorf("unsupported output format")
 	}
 }
+
+// ConvertMarkdownDirToYAML はMarkdownディレクトリを1つのYAMLファイルに集約する
+// エントリーポイント．recursiveがtrueの場合はサブディレクトリも再帰的に辿る．
+func ConvertMarkdownDirToYAML(mdDirPath, yamlFilePath string, recursive bool) error {
+	items, err := AggregateMarkdownDir(mdDirPath, recursive)
+	if err != nil {
+		return err
+	}
+	return SaveYAMLData(items, yamlFilePath)
+}

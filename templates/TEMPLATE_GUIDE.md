@@ -211,16 +211,16 @@ CSVもテンプレートで列の構成や順序を変えられます．値に�
 
 ### 1. LaTeX形式での出力
 ```bash
-go run converter.go quiz.yaml quiz.tex quiz_template.tex
+go run . -input quiz.yaml -output quiz.tex -template quiz_template.tex
 ```
 
 ### 2. JSON形式での出力
 ```bash
-go run converter.go quiz.yaml quiz.json json_template.json
+go run . -input quiz.yaml -output quiz.json -template json_template.json
 ```
 
 ### 3. プレーンテキスト
 ```bash
-go run converter.go quiz.yaml quiz.txt simple_template.txt
+go run . -input quiz.yaml -output quiz.txt -template simple_template.txt
 ```
 
