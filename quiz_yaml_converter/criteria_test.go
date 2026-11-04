@@ -286,6 +286,9 @@ func TestCriteriaUnmarshalYAMLValidMerge(t *testing.T) {
 				t.Fatalf("len(items) = %d, want %d", len(items), len(tt.want))
 			}
 			for i, want := range tt.want {
+				if items[i].Criteria == nil {
+					t.Fatalf("items[%d].Criteria = nil, want %+v", i, want)
+				}
 				if !reflect.DeepEqual(*items[i].Criteria, want) {
 					t.Errorf("items[%d].Criteria = %+v, want %+v", i, *items[i].Criteria, want)
 				}
@@ -311,7 +314,7 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
     <<: *b
     ng: [x]
 `,
-			want: [][]unknownCriteriaKey{{{name: "okk", line: 4}}},
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 4, merged: true}}},
 		},
 		{
 			name: "sequence of aliases with a typo in one",
@@ -323,7 +326,7 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
   criteria:
     <<: [*a, *b]
 `,
-			want: [][]unknownCriteriaKey{{{name: "rpeat", line: 5}}},
+			want: [][]unknownCriteriaKey{{{name: "rpeat", line: 5, merged: true}}},
 		},
 		{
 			name: "nested merge with a typo in the inner anchor",
@@ -336,7 +339,7 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
   criteria:
     <<: *mid
 `,
-			want: [][]unknownCriteriaKey{{{name: "ngg", line: 3}}},
+			want: [][]unknownCriteriaKey{{{name: "ngg", line: 3, merged: true}}},
 		},
 		{
 			name: "inline mapping",
@@ -344,10 +347,10 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
   criteria:
     <<: {okk: [foo]}
 `,
-			want: [][]unknownCriteriaKey{{{name: "okk", line: 3}}},
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3, merged: true}}},
 		},
 		{
-			name: "merged and direct unknown keys are recorded in key order",
+			name: "direct unknown keys are recorded before merged ones",
 			content: `- question: Q1
   common: &b
     okk: [foo]
@@ -356,7 +359,7 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
     <<: *b
     close: [c]
 `,
-			want: [][]unknownCriteriaKey{{{name: "maybe", line: 5}, {name: "okk", line: 3}, {name: "close", line: 7}}},
+			want: [][]unknownCriteriaKey{{{name: "maybe", line: 5}, {name: "close", line: 7}, {name: "okk", line: 3, merged: true}}},
 		},
 		{
 			name: "same mapping reached twice is recorded once",
@@ -369,7 +372,30 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
   criteria:
     <<: [*a, *b]
 `,
-			want: [][]unknownCriteriaKey{{{name: "okk", line: 3}}},
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3, merged: true}}},
+		},
+		{
+			name: "same key written directly and merged is recorded once as the direct one",
+			content: `- question: Q1
+  common: &b
+    okk: [a]
+  criteria:
+    <<: *b
+    okk: [b]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 6}}},
+		},
+		{
+			name: "same key in two merged mappings is recorded once as the earlier one",
+			content: `- question: Q1
+  a: &a
+    okk: [a]
+  b: &b
+    okk: [b]
+  criteria:
+    <<: [*a, *b]
+`,
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3, merged: true}}},
 		},
 		{
 			name: "anchor on another item's criteria is reported for each item",
@@ -381,7 +407,7 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
     <<: *common
     ng: [x]
 `,
-			want: [][]unknownCriteriaKey{{{name: "okk", line: 3}}, {{name: "okk", line: 3}}},
+			want: [][]unknownCriteriaKey{{{name: "okk", line: 3}}, {{name: "okk", line: 3, merged: true}}},
 		},
 	}
 
@@ -401,6 +427,9 @@ func TestCriteriaUnmarshalYAMLUnknownKeysInMerge(t *testing.T) {
 				t.Fatalf("len(items) = %d, want %d", len(items), len(tt.want))
 			}
 			for i, want := range tt.want {
+				if items[i].Criteria == nil {
+					t.Fatalf("items[%d].Criteria = nil, want unknown keys %+v", i, want)
+				}
 				if !reflect.DeepEqual(items[i].Criteria.unknownKeys, want) {
 					t.Errorf("items[%d].Criteria.unknownKeys = %+v, want %+v", i, items[i].Criteria.unknownKeys, want)
 				}

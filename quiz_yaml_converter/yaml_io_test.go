@@ -157,7 +157,7 @@ func TestUnknownCriteriaKeysInMergeAreReported(t *testing.T) {
     <<: *b
     ng: [x]
 `,
-			wantErr: "問題 1: 不正なcriteriaキー: 'okk'（4行目） (使用可能: ok, ng, repeat)",
+			wantErr: "問題 1: 不正なcriteriaキー: 'okk'（4行目，<< で取り込み） (使用可能: ok, ng, repeat)",
 		},
 		{
 			name: "nested merge",
@@ -171,7 +171,7 @@ func TestUnknownCriteriaKeysInMergeAreReported(t *testing.T) {
     <<: [*mid]
     ok: [foo]
 `,
-			wantErr: "問題 1: 不正なcriteriaキー: 'ngg'（4行目）",
+			wantErr: "問題 1: 不正なcriteriaキー: 'ngg'（4行目，<< で取り込み）",
 		},
 	}
 

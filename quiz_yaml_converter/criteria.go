@@ -19,14 +19,16 @@ type Criteria struct {
 }
 
 // criteria に書かれていた不正なキーと，その行番号．
+// merged は <<: *anchor などのマージで取り込んだキーかどうか．（行番号は取り込み元のマッピングの行になる．）
 type unknownCriteriaKey struct {
-	name string
-	line int
+	name   string
+	line   int
+	merged bool
 }
 
 // YAMLの criteria オブジェクトを読み込む．
 // ok / ng / repeat はそのまま読み込み，それ以外のキーは不正なキーとして記録する．
-// <<: *anchor などのマージで取り込んだマッピングのキーも同じ規則で確認し，取り込んだ側のキーの行番号を記録する．
+// <<: *anchor などのマージで取り込んだマッピングのキーも同じ規則で確認し，取り込み元のキーの行番号を記録する．
 // criteria 以外のフィールドの未定義のキーは従来どおり無視するため，Decoder.KnownFields は使わない．
 func (c *Criteria) UnmarshalYAML(node *yaml.Node) error {
 	type plain Criteria // UnmarshalYAMLを持たない型に変換し，再帰呼び出しを防ぐ
@@ -36,57 +38,92 @@ func (c *Criteria) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return nil
 	}
-	c.collectUnknownKeys(node, map[*yaml.Node]bool{})
+	collector := unknownKeyCollector{seenNames: map[string]bool{}}
+	collector.collect(node, false)
+	c.unknownKeys = collector.keys
 	return nil
 }
 
-// マッピングのキーのうち ok / ng / repeat 以外のものを不正なキーとして記録する．
-// マージのキー（<<）は，その値が指すマッピングを再帰的に確認する．
-// visited は確認済みのマッピングで，循環参照による無限ループと，同じマッピングを複数回取り込んだ場合の重複を防ぐ．
-func (c *Criteria) collectUnknownKeys(mapping *yaml.Node, visited map[*yaml.Node]bool) {
-	if visited[mapping] {
-		return
-	}
-	visited[mapping] = true
+// criteria のマッピングから不正なキーを集める．
+//
+// YAMLのマージの規則（直接書いたキーは取り込んだキーより優先され，<<: [*a, *b] では前のものが優先される）
+// に合わせて，優先されるキーから順に確認し，同じ名前のキーは最初の1つだけを記録する．
+// これにより，読み込まれる値が1つだけのキーを重複して報告しない．
+type unknownKeyCollector struct {
+	keys      []unknownCriteriaKey
+	seenNames map[string]bool
+	visited   map[*yaml.Node]bool // 確認済みのマッピング．<< がある場合だけ作る．（循環参照による無限ループを防ぐ．）
+}
+
+// マッピングの直接のキーを確認してから，マージのキー（<<）が指すマッピングを順に確認する．
+func (u *unknownKeyCollector) collect(mapping *yaml.Node, merged bool) {
+	var merges []*yaml.Node
 	for i := 0; i+1 < len(mapping.Content); i += 2 {
 		key := mapping.Content[i]
 		if key.Tag == "!!merge" {
-			c.collectUnknownKeysInMerge(mapping.Content[i+1], visited)
+			merges = append(merges, mapping.Content[i+1])
 			continue
 		}
-		switch key.Value {
-		case "ok", "ng", "repeat":
-			continue
-		}
-		c.unknownKeys = append(c.unknownKeys, unknownCriteriaKey{name: key.Value, line: key.Line})
+		u.record(key, merged)
+	}
+	if len(merges) == 0 {
+		return
+	}
+	if u.visited == nil {
+		u.visited = map[*yaml.Node]bool{}
+	}
+	u.visited[mapping] = true
+	for _, value := range merges {
+		u.collectMerge(value)
 	}
 }
 
 // マージのキー（<<）の値をたどり，取り込むマッピングのキーを確認する．
 // 値はマッピング，エイリアス，またはそれらのシーケンス（<<: [*a, *b]）のいずれか．
-func (c *Criteria) collectUnknownKeysInMerge(value *yaml.Node, visited map[*yaml.Node]bool) {
+// （不正な値や未定義のアンカーは，ここに来る前に yaml.v3 がエラーにする．）
+func (u *unknownKeyCollector) collectMerge(value *yaml.Node) {
 	switch value.Kind {
 	case yaml.AliasNode:
-		if value.Alias != nil {
-			c.collectUnknownKeysInMerge(value.Alias, visited)
-		}
+		u.collectMerge(value.Alias)
 	case yaml.MappingNode:
-		c.collectUnknownKeys(value, visited)
+		if u.visited[value] {
+			return
+		}
+		u.visited[value] = true
+		u.collect(value, true)
 	case yaml.SequenceNode:
 		for _, elem := range value.Content {
-			c.collectUnknownKeysInMerge(elem, visited)
+			u.collectMerge(elem)
 		}
 	}
 }
 
+// ok / ng / repeat 以外のキーで，まだ記録していない名前のものを記録する．
+func (u *unknownKeyCollector) record(key *yaml.Node, merged bool) {
+	if u.seenNames[key.Value] {
+		return
+	}
+	u.seenNames[key.Value] = true
+	switch key.Value {
+	case "ok", "ng", "repeat":
+		return
+	}
+	u.keys = append(u.keys, unknownCriteriaKey{name: key.Value, line: key.Line, merged: merged})
+}
+
 // 不正なキーごとのエラーメッセージを返す．prefixは「問題 1: 」のような問題の位置を表す文字列．
+// マージで取り込んだキーは，行番号が別の問題などの行を指すことがあるため，その旨を書き添える．
 func (c *Criteria) unknownKeyErrors(prefix string) []string {
 	if c == nil {
 		return nil
 	}
 	var errs []string
 	for _, key := range c.unknownKeys {
-		errs = append(errs, fmt.Sprintf("%s不正なcriteriaキー: '%s'（%d行目） (使用可能: ok, ng, repeat)", prefix, key.name, key.line))
+		location := fmt.Sprintf("%d行目", key.line)
+		if key.merged {
+			location += "，<< で取り込み"
+		}
+		errs = append(errs, fmt.Sprintf("%s不正なcriteriaキー: '%s'（%s） (使用可能: ok, ng, repeat)", prefix, key.name, location))
 	}
 	return errs
 }
