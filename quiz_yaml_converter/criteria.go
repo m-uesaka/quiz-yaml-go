@@ -26,6 +26,7 @@ type unknownCriteriaKey struct {
 
 // YAMLの criteria オブジェクトを読み込む．
 // ok / ng / repeat はそのまま読み込み，それ以外のキーは不正なキーとして記録する．
+// <<: *anchor などのマージで取り込んだマッピングのキーも同じ規則で確認し，取り込んだ側のキーの行番号を記録する．
 // criteria 以外のフィールドの未定義のキーは従来どおり無視するため，Decoder.KnownFields は使わない．
 func (c *Criteria) UnmarshalYAML(node *yaml.Node) error {
 	type plain Criteria // UnmarshalYAMLを持たない型に変換し，再帰呼び出しを防ぐ
@@ -35,9 +36,22 @@ func (c *Criteria) UnmarshalYAML(node *yaml.Node) error {
 	if node.Kind != yaml.MappingNode {
 		return nil
 	}
-	for i := 0; i+1 < len(node.Content); i += 2 {
-		key := node.Content[i]
-		if key.Tag == "!!merge" { // <<: *anchor によるマージは不正なキーとして扱わない
+	c.collectUnknownKeys(node, map[*yaml.Node]bool{})
+	return nil
+}
+
+// マッピングのキーのうち ok / ng / repeat 以外のものを不正なキーとして記録する．
+// マージのキー（<<）は，その値が指すマッピングを再帰的に確認する．
+// visited は確認済みのマッピングで，循環参照による無限ループと，同じマッピングを複数回取り込んだ場合の重複を防ぐ．
+func (c *Criteria) collectUnknownKeys(mapping *yaml.Node, visited map[*yaml.Node]bool) {
+	if visited[mapping] {
+		return
+	}
+	visited[mapping] = true
+	for i := 0; i+1 < len(mapping.Content); i += 2 {
+		key := mapping.Content[i]
+		if key.Tag == "!!merge" {
+			c.collectUnknownKeysInMerge(mapping.Content[i+1], visited)
 			continue
 		}
 		switch key.Value {
@@ -46,7 +60,23 @@ func (c *Criteria) UnmarshalYAML(node *yaml.Node) error {
 		}
 		c.unknownKeys = append(c.unknownKeys, unknownCriteriaKey{name: key.Value, line: key.Line})
 	}
-	return nil
+}
+
+// マージのキー（<<）の値をたどり，取り込むマッピングのキーを確認する．
+// 値はマッピング，エイリアス，またはそれらのシーケンス（<<: [*a, *b]）のいずれか．
+func (c *Criteria) collectUnknownKeysInMerge(value *yaml.Node, visited map[*yaml.Node]bool) {
+	switch value.Kind {
+	case yaml.AliasNode:
+		if value.Alias != nil {
+			c.collectUnknownKeysInMerge(value.Alias, visited)
+		}
+	case yaml.MappingNode:
+		c.collectUnknownKeys(value, visited)
+	case yaml.SequenceNode:
+		for _, elem := range value.Content {
+			c.collectUnknownKeysInMerge(elem, visited)
+		}
+	}
 }
 
 // 不正なキーごとのエラーメッセージを返す．prefixは「問題 1: 」のような問題の位置を表す文字列．

@@ -139,3 +139,61 @@ func TestLoadYAMLDataUnknownCriteriaKeys(t *testing.T) {
 		})
 	}
 }
+
+// criteria に << で取り込んだ内容の不正なキーが，読み込みとバリデーションの両方で報告されることを確認する．
+func TestUnknownCriteriaKeysInMergeAreReported(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{
+			name: "alias of a custom field (issue #37)",
+			content: `- question: Q1
+  answer: A1
+  common: &b
+    okk: [foo]
+  criteria:
+    <<: *b
+    ng: [x]
+`,
+			wantErr: "問題 1: 不正なcriteriaキー: 'okk'（4行目） (使用可能: ok, ng, repeat)",
+		},
+		{
+			name: "nested merge",
+			content: `- question: Q1
+  answer: A1
+  base: &base
+    ngg: [x]
+  mid: &mid
+    <<: *base
+  criteria:
+    <<: [*mid]
+    ok: [foo]
+`,
+			wantErr: "問題 1: 不正なcriteriaキー: 'ngg'（4行目）",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			path := writeTempYAML(t, tt.content)
+
+			// Act
+			_, loadErr := LoadYAMLData(path)
+			result := ValidateYAMLFile(path)
+
+			// Assert
+			if loadErr == nil || !strings.Contains(loadErr.Error(), tt.wantErr) {
+				t.Errorf("LoadYAMLData() error = %v, want it to contain %q", loadErr, tt.wantErr)
+			}
+			if result.IsValid {
+				t.Fatalf("ValidateYAMLFile() IsValid = true, want false")
+			}
+			if len(result.Errors) != 1 || !strings.Contains(result.Errors[0], tt.wantErr) {
+				t.Errorf("ValidateYAMLFile() Errors = %q, want 1 error containing %q", result.Errors, tt.wantErr)
+			}
+		})
+	}
+}
