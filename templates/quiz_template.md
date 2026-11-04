@@ -9,7 +9,7 @@
 
 **Answer:** {{escapeHTML .Answer}}
 
-{{if .Criteria}}
+{{if .HasCriteria}}
 **Criteria:** {{formatCriteria .Criteria | escapeHTML}}
 {{end}}
 

@@ -171,21 +171,12 @@ func parseMarkdownSections(body string) (markdownSections, error) {
 	}, nil
 }
 
-// buildCriteria は OK/NG/Close を criteria マップに変換する．
+// buildCriteria は OK/NG/Close を判定基準に変換する．
 // "Close" は既存YAMLの "repeat" に対応する名前変換を行う．
 // OK/NG/Closeが全て空の場合は nil を返す．
-func buildCriteria(ok, ng, close []string) map[string][]string {
-	criteria := map[string][]string{}
-	if len(ok) > 0 {
-		criteria["ok"] = ok
-	}
-	if len(ng) > 0 {
-		criteria["ng"] = ng
-	}
-	if len(close) > 0 {
-		criteria["repeat"] = close
-	}
-	if len(criteria) == 0 {
+func buildCriteria(ok, ng, close []string) *Criteria {
+	criteria := &Criteria{OK: ok, NG: ng, Repeat: close}
+	if criteria.IsEmpty() {
 		return nil
 	}
 	return criteria
