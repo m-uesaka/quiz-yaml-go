@@ -1,0 +1,3 @@
+{{csvRow "question" "answer" "spell" "criteria"}}
+{{range .Items}}{{csvRow .Question .Answer .Spell (formatCriteria .Criteria)}}
+{{end -}}

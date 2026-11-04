@@ -7,6 +7,7 @@
 package quiz_yaml_converter
 
 import (
+	"bytes"
 	"encoding/csv"
 	"fmt"
 	"io"
@@ -131,6 +132,28 @@ func FormatCriteria(criteria map[string][]string) string {
 	}
 
 	return strings.Join(parts, "／")
+}
+
+// 引数を1行分のCSVレコードとしてフォーマットする（末尾の改行は含まない）．
+// カンマ・ダブルクォート・改行などを含むフィールドはencoding/csvと同じ規則でクォートされる．
+// テンプレートからは {{csvRow .Question .Answer}} のように使用する．
+func CSVRow(fields ...string) (string, error) {
+	var buf bytes.Buffer
+	w := csv.NewWriter(&buf)
+	if err := w.Write(fields); err != nil {
+		return "", err
+	}
+	w.Flush()
+	if err := w.Error(); err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(buf.String(), "\n"), nil
+}
+
+// 1つの値をCSVのフィールドとしてエスケープする．
+// テンプレートからは {{csvField .Question}} のように使用する．
+func CSVField(field string) (string, error) {
+	return CSVRow(field)
 }
 
 // 出力されるファイルのフォーマットを返す．
@@ -300,6 +323,8 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 	tmpl, err := template.New("quiz").Funcs(template.FuncMap{
 		"formatCriteria": FormatCriteria,
 		"quoteAll":       formatCriteriaSection,
+		"csvRow":         CSVRow,
+		"csvField":       CSVField,
 		"addQuotes":      AddQuotesIfNeeded,
 		"join":           strings.Join,
 		"upper":          strings.ToUpper,
