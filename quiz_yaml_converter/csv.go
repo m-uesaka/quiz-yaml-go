@@ -37,7 +37,11 @@ func ConvertYAMLToCSV(yamlFilePath, csvFilePath string) error {
 	if err != nil {
 		return err
 	}
+	return writeCSV(data, csvFilePath)
+}
 
+// writeCSV は読み込み済みのクイズデータをCSVファイルに書き出す．
+func writeCSV(data []QuizItem, csvFilePath string) error {
 	// Create CSV file
 	csvFile, err := os.Create(csvFilePath)
 	if err != nil {
