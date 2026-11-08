@@ -30,8 +30,7 @@ import (
 // outputFormat は -format で指定できる出力フォーマット1つ分の設定を表す
 type outputFormat struct {
 	// builtin はバイナリに埋め込んだ組み込みテンプレートの種類．
-	// 空文字の場合はテンプレートを指定せずにConvertを呼ぶ．Convertは出力ファイルの拡張子で形式を判定するため，
-	// 拡張子が.csvのときだけ（組み込みのCSVテンプレートで）CSVを出力し，それ以外の拡張子ではエラーになる（#29）．
+	// 出力ファイルの拡張子に関係なく，このテンプレートで出力する（#29）．
 	builtin quiz_yaml_converter.BuiltinTemplate
 	// label は完了メッセージに表示するフォーマット名
 	label string
@@ -39,7 +38,7 @@ type outputFormat struct {
 
 // outputFormats は -format の値と出力フォーマットの対応表
 var outputFormats = map[string]outputFormat{
-	"csv":      {builtin: "", label: "CSV"},
+	"csv":      {builtin: quiz_yaml_converter.BuiltinCSV, label: "CSV"},
 	"html":     {builtin: quiz_yaml_converter.BuiltinHTML, label: "HTML"},
 	"markdown": {builtin: quiz_yaml_converter.BuiltinMarkdown, label: "Markdown"},
 	"md":       {builtin: quiz_yaml_converter.BuiltinMarkdown, label: "Markdown"},
@@ -177,17 +176,29 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return usageError(fmt.Sprintf("サポートされていないフォーマットです: %s\nサポートされているフォーマット: csv, html, markdown", *format))
 	}
-	var warnings []quiz_yaml_converter.ValidationError
-	var err error
-	if f.builtin == "" {
-		warnings, err = quiz_yaml_converter.ConvertWithWarnings(*inputFile, *outputFile, "")
-	} else {
-		warnings, err = quiz_yaml_converter.ConvertWithBuiltinTemplateWithWarnings(*inputFile, *outputFile, f.builtin)
+	// -formatを省略した場合は既定のCSVで出力するが，出力ファイルの拡張子が.csvでないときは
+	// 意図しない形式で書き出さないようエラーにする（従来どおり）．-formatを明示した場合は拡張子に関係なく，
+	// 指定したフォーマットで出力する（#29）．
+	if !isFlagSet(fs, "format") && quiz_yaml_converter.DetectOutputFormat(*outputFile, "") != quiz_yaml_converter.FormatCSV {
+		return usageError(fmt.Sprintf("出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: %s\n-formatまたは-templateを指定してください", *outputFile))
 	}
+	warnings, err := quiz_yaml_converter.ConvertWithBuiltinTemplateWithWarnings(*inputFile, *outputFile, f.builtin)
 	printWarnings(warnings)
 	if err != nil {
 		return failure(err)
 	}
 	fmt.Fprintf(stdout, "✅ %s変換完了: %s → %s\n", f.label, *inputFile, *outputFile)
 	return 0
+}
+
+// isFlagSet はfsでnameのフラグがコマンドラインで明示的に指定されたかどうかを返す．
+// fs.Parseのあとに呼ぶ．
+func isFlagSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == name {
+			set = true
+		}
+	})
+	return set
 }

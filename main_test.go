@@ -14,6 +14,9 @@ const exampleYAML = "yaml/example.yaml"
 // testProg はテストでrunに渡すプログラム名
 const testProg = "quiz-yaml-converter"
 
+// csvHeader はCSV出力の先頭行
+const csvHeader = "question,answer,spell,criteria\n"
+
 // usageHeader はヘルプメッセージの先頭部分
 const usageHeader = "使用法: "
 
@@ -153,20 +156,78 @@ func TestRun_ConvertByFormatOutsideRepository(t *testing.T) {
 	}
 }
 
+// -formatを省略した場合は，出力ファイルの拡張子が.csv（大文字・小文字を区別しない）であればCSVで出力することを確認する．
 func TestRun_ConvertDefaultFormatIsCSV(t *testing.T) {
-	// Arrange
-	output := filepath.Join(t.TempDir(), "quiz.csv")
-
-	// Act
-	code, stdout, stderr := runCLI("-input", exampleYAML, "-output", output)
-
-	// Assert
-	if code != 0 {
-		t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+	tests := []struct {
+		name       string
+		outputName string
+	}{
+		{name: "拡張子が.csv", outputName: "quiz.csv"},
+		{name: "拡張子が.CSV", outputName: "quiz.CSV"},
 	}
-	wantStdout := "✅ CSV変換完了: " + exampleYAML + " → " + output + "\n"
-	if stdout != wantStdout {
-		t.Errorf("stdout = %q, want %q", stdout, wantStdout)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			output := filepath.Join(t.TempDir(), tt.outputName)
+
+			// Act
+			code, stdout, stderr := runCLI("-input", exampleYAML, "-output", output)
+
+			// Assert
+			if code != 0 {
+				t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+			}
+			wantStdout := "✅ CSV変換完了: " + exampleYAML + " → " + output + "\n"
+			if stdout != wantStdout {
+				t.Errorf("stdout = %q, want %q", stdout, wantStdout)
+			}
+			if got := readFile(t, output); !strings.HasPrefix(got, csvHeader) {
+				t.Errorf("output = %q, want prefix %q", got, csvHeader)
+			}
+		})
+	}
+}
+
+// -formatを明示した場合は，出力ファイルの拡張子に関係なく指定したフォーマットで出力することを確認する（#29）．
+func TestRun_ConvertExplicitFormatIgnoresExtension(t *testing.T) {
+	tests := []struct {
+		name        string
+		format      string
+		outputName  string
+		wantMessage string
+		wantPrefix  string
+	}{
+		{name: "csvを.txtに出力", format: "csv", outputName: "quiz.txt", wantMessage: "✅ CSV変換完了: ", wantPrefix: csvHeader},
+		{name: "csvを拡張子なしのファイルに出力", format: "csv", outputName: "quiz", wantMessage: "✅ CSV変換完了: ", wantPrefix: csvHeader},
+		{name: "csvを.htmlに出力", format: "csv", outputName: "quiz.html", wantMessage: "✅ CSV変換完了: ", wantPrefix: csvHeader},
+		{name: "htmlを.csvに出力", format: "html", outputName: "quiz.csv", wantMessage: "✅ HTML変換完了: ", wantPrefix: "<!DOCTYPE html>"},
+		{name: "markdownを.txtに出力", format: "markdown", outputName: "quiz.txt", wantMessage: "✅ Markdown変換完了: ", wantPrefix: "# "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			output := filepath.Join(t.TempDir(), tt.outputName)
+
+			// Act
+			code, stdout, stderr := runCLI("-input", exampleYAML, "-output", output, "-format", tt.format)
+
+			// Assert
+			if code != 0 {
+				t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+			}
+			wantStdout := tt.wantMessage + exampleYAML + " → " + output + "\n"
+			if stdout != wantStdout {
+				t.Errorf("stdout = %q, want %q", stdout, wantStdout)
+			}
+			if stderr != "" {
+				t.Errorf("stderr = %q, want empty", stderr)
+			}
+			if got := readFile(t, output); !strings.HasPrefix(got, tt.wantPrefix) {
+				t.Errorf("output = %q, want prefix %q", got, tt.wantPrefix)
+			}
+		})
 	}
 }
 
@@ -295,6 +356,24 @@ func TestRun_InvalidArguments(t *testing.T) {
 			args: []string{"-input", exampleYAML, "-output", "out.xml", "-format", "xml"},
 			wantMsg: "❌ エラー: サポートされていないフォーマットです: xml\n" +
 				"サポートされているフォーマット: csv, html, markdown\n",
+		},
+		{
+			name: "-format未指定で出力ファイルの拡張子が.html",
+			args: []string{"-input", exampleYAML, "-output", "out.html"},
+			wantMsg: "❌ エラー: 出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: out.html\n" +
+				"-formatまたは-templateを指定してください\n",
+		},
+		{
+			name: "-format未指定で出力ファイルの拡張子が.txt",
+			args: []string{"-input", exampleYAML, "-output", "out.txt"},
+			wantMsg: "❌ エラー: 出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: out.txt\n" +
+				"-formatまたは-templateを指定してください\n",
+		},
+		{
+			name: "-format未指定で出力ファイルに拡張子がない",
+			args: []string{"-input", exampleYAML, "-output", "out"},
+			wantMsg: "❌ エラー: 出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: out\n" +
+				"-formatまたは-templateを指定してください\n",
 		},
 	}
 
