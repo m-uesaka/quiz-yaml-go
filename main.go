@@ -29,20 +29,20 @@ import (
 
 // outputFormat は -format で指定できる出力フォーマット1つ分の設定を表す
 type outputFormat struct {
-	// template は組み込みテンプレートのパス．
+	// builtin はバイナリに埋め込んだ組み込みテンプレートの種類．
 	// 空文字の場合はテンプレートを指定せずにConvertを呼ぶ．Convertは出力ファイルの拡張子で形式を判定するため，
-	// 拡張子が.csvのときだけCSVを出力し，それ以外の拡張子ではエラーになる（#29）．
-	template string
+	// 拡張子が.csvのときだけ（組み込みのCSVテンプレートで）CSVを出力し，それ以外の拡張子ではエラーになる（#29）．
+	builtin quiz_yaml_converter.BuiltinTemplate
 	// label は完了メッセージに表示するフォーマット名
 	label string
 }
 
 // outputFormats は -format の値と出力フォーマットの対応表
 var outputFormats = map[string]outputFormat{
-	"csv":      {template: "", label: "CSV"},
-	"html":     {template: "templates/quiz_template.html", label: "HTML"},
-	"markdown": {template: "templates/quiz_template.md", label: "Markdown"},
-	"md":       {template: "templates/quiz_template.md", label: "Markdown"},
+	"csv":      {builtin: "", label: "CSV"},
+	"html":     {builtin: quiz_yaml_converter.BuiltinHTML, label: "HTML"},
+	"markdown": {builtin: quiz_yaml_converter.BuiltinMarkdown, label: "Markdown"},
+	"md":       {builtin: quiz_yaml_converter.BuiltinMarkdown, label: "Markdown"},
 }
 
 func main() {
@@ -77,7 +77,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.csv\n", prog)
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", prog)
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", prog)
-		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n", prog)
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.md -format markdown\n", prog)
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -validate\n", prog)
 		fmt.Fprintf(stderr, "  %s -markdown-dir path/to/quiz -output quiz.yaml\n", prog)
 		fmt.Fprintf(stderr, "  %s -markdown-dir path/to/quiz -recursive -output quiz.yaml\n", prog)
@@ -177,7 +177,13 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return usageError(fmt.Sprintf("サポートされていないフォーマットです: %s\nサポートされているフォーマット: csv, html, markdown", *format))
 	}
-	warnings, err := quiz_yaml_converter.ConvertWithWarnings(*inputFile, *outputFile, f.template)
+	var warnings []quiz_yaml_converter.ValidationError
+	var err error
+	if f.builtin == "" {
+		warnings, err = quiz_yaml_converter.ConvertWithWarnings(*inputFile, *outputFile, "")
+	} else {
+		warnings, err = quiz_yaml_converter.ConvertWithBuiltinTemplateWithWarnings(*inputFile, *outputFile, f.builtin)
+	}
 	printWarnings(warnings)
 	if err != nil {
 		return failure(err)

@@ -81,20 +81,30 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 	}
 
 	htmlMode := isHTMLPath(templateFilePath) || isHTMLPath(outputFilePath)
-	tmpl, err := parseTemplate(string(templateContent), htmlMode)
+	return executeTemplateToFile(string(templateContent), htmlMode, data, outputFilePath)
+}
+
+// テンプレートの内容contentを解析・実行し，結果を出力ファイルに書き込む．
+// ファイルシステム上のテンプレートと組み込みテンプレートの両方で使う共通の出力処理．
+func executeTemplateToFile(content string, htmlMode bool, data []QuizItem, outputFilePath string) error {
+	tmpl, err := parseTemplate(content, htmlMode)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	// テンプレートの実行が途中で失敗した場合（html/templateのエスケープエラーを含む）に
-	// 既存の出力ファイルを壊さないよう，一度メモリ上に出力してから，成功した場合のみファイルに書き込む．
+	// 既存の出力ファイルを壊さないよう，一度メモリ上に出力し，実行に成功した場合のみファイルに書き込む．
+	// os.WriteFile は書き込みとクローズのどちらのエラーも返すため，書き込みの失敗も呼び出し元に伝わる．
+	// ただし os.WriteFile は既存のファイルを空にしてから書き込むため，書き込みの途中で失敗した場合は
+	// 既存の出力ファイルは残らず，途中まで書き込まれたファイルになる．
+	// 権限は os.Create と同じく 0666 から umask を引いたもの（新しくファイルを作る場合のみ）．
 	var buf bytes.Buffer
 	templateData := TemplateData{Items: data}
 	if err := tmpl.Execute(&buf, templateData); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	if err := os.WriteFile(outputFilePath, buf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(outputFilePath, buf.Bytes(), 0o666); err != nil {
 		return fmt.Errorf("failed to write output file: %w", err)
 	}
 

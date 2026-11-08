@@ -44,7 +44,7 @@ const wantUsage = "使用法: quiz-yaml-converter [オプション]\n" +
 	"  quiz-yaml-converter -input quiz.yaml -output quiz.csv\n" +
 	"  quiz-yaml-converter -input quiz.yaml -output quiz.html -format html\n" +
 	"  quiz-yaml-converter -input quiz.yaml -output quiz.md -template custom.tmpl\n" +
-	"  quiz-yaml-converter -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n" +
+	"  quiz-yaml-converter -input quiz.yaml -output quiz.md -format markdown\n" +
 	"  quiz-yaml-converter -input quiz.yaml -validate\n" +
 	"  quiz-yaml-converter -markdown-dir path/to/quiz -output quiz.yaml\n" +
 	"  quiz-yaml-converter -markdown-dir path/to/quiz -recursive -output quiz.yaml\n"
@@ -110,6 +110,43 @@ func TestRun_ConvertByFormat(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", stderr)
 			}
 			if got := readFile(t, output); !strings.Contains(got, tt.wantContent) {
+				t.Errorf("output does not contain %q", tt.wantContent)
+			}
+		})
+	}
+}
+
+// 組み込みテンプレートはバイナリに埋め込まれているため，リポジトリの外をカレントディレクトリにしても変換できることを確認する．
+func TestRun_ConvertByFormatOutsideRepository(t *testing.T) {
+	tests := []struct {
+		name        string
+		format      string
+		outputName  string
+		wantContent string
+	}{
+		{name: "csv", format: "csv", outputName: "quiz.csv", wantContent: "ジョン・アタナソフ"},
+		{name: "html", format: "html", outputName: "quiz.html", wantContent: "<html"},
+		{name: "markdown", format: "markdown", outputName: "quiz.md", wantContent: "ジョン・アタナソフ"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			input, err := filepath.Abs(exampleYAML)
+			if err != nil {
+				t.Fatalf("failed to get absolute path: %v", err)
+			}
+			dir := t.TempDir()
+			t.Chdir(dir)
+
+			// Act
+			code, _, stderr := runCLI("-input", input, "-output", tt.outputName, "-format", tt.format)
+
+			// Assert
+			if code != 0 {
+				t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+			}
+			if got := readFile(t, filepath.Join(dir, tt.outputName)); !strings.Contains(got, tt.wantContent) {
 				t.Errorf("output does not contain %q", tt.wantContent)
 			}
 		})
@@ -315,6 +352,24 @@ func TestRun_ConversionErrors(t *testing.T) {
 			name: "テンプレートファイルが存在しない",
 			args: func(_ *testing.T, dir string) []string {
 				return []string{"-input", exampleYAML, "-output", filepath.Join(dir, "quiz.txt"), "-template", filepath.Join(dir, "missing.tmpl")}
+			},
+		},
+		{
+			name: "CSVの出力先ディレクトリが存在しない",
+			args: func(_ *testing.T, dir string) []string {
+				return []string{"-input", exampleYAML, "-output", filepath.Join(dir, "missing", "quiz.csv")}
+			},
+		},
+		{
+			name: "HTMLの出力先ディレクトリが存在しない",
+			args: func(_ *testing.T, dir string) []string {
+				return []string{"-input", exampleYAML, "-output", filepath.Join(dir, "missing", "quiz.html"), "-format", "html"}
+			},
+		},
+		{
+			name: "Markdownの出力先ディレクトリが存在しない",
+			args: func(_ *testing.T, dir string) []string {
+				return []string{"-input", exampleYAML, "-output", filepath.Join(dir, "missing", "quiz.md"), "-format", "markdown"}
 			},
 		},
 		{

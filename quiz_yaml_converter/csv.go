@@ -3,8 +3,6 @@ package quiz_yaml_converter
 import (
 	"bytes"
 	"encoding/csv"
-	"fmt"
-	"os"
 	"strings"
 )
 
@@ -32,44 +30,8 @@ func CSVField(field string) (string, error) {
 
 // YAMLファイルをCSVファイルに変換する．
 // CSV出力には問題文、答え、原語表記、およびフォーマットされた正誤判定が含まれる．
+// 組み込みのCSVテンプレート（templates/quiz_template.csv）で出力するため，
+// ConvertWithBuiltinTemplate(yamlFilePath, csvFilePath, BuiltinCSV) と同じ結果になる．
 func ConvertYAMLToCSV(yamlFilePath, csvFilePath string) error {
-	data, err := LoadYAMLData(yamlFilePath)
-	if err != nil {
-		return err
-	}
-	return writeCSV(data, csvFilePath)
-}
-
-// writeCSV は読み込み済みのクイズデータをCSVファイルに書き出す．
-func writeCSV(data []QuizItem, csvFilePath string) error {
-	// Create CSV file
-	csvFile, err := os.Create(csvFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create CSV file: %w", err)
-	}
-	defer csvFile.Close()
-
-	writer := csv.NewWriter(csvFile)
-	defer writer.Flush()
-
-	// Write header
-	err = writer.Write([]string{"question", "answer", "spell", "criteria"})
-	if err != nil {
-		return fmt.Errorf("failed to write CSV header: %w", err)
-	}
-
-	// Write data rows
-	for _, item := range data {
-		err = writer.Write([]string{
-			item.Question,
-			item.Answer,
-			item.Spell,
-			item.Criteria.Format(),
-		})
-		if err != nil {
-			return fmt.Errorf("failed to write CSV row: %w", err)
-		}
-	}
-
-	return nil
+	return ConvertWithBuiltinTemplate(yamlFilePath, csvFilePath, BuiltinCSV)
 }

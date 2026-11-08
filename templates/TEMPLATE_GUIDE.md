@@ -182,7 +182,7 @@ type Criteria struct {
 
 CSVもテンプレートで列の構成や順序を変えられます．値にカンマ・ダブルクォート・改行が含まれていても壊れないよう，`csvRow`（または`csvField`）を使って出力してください．
 
-`templates/quiz_template.csv` は，テンプレートを使わない場合のCSV出力と同じ内容を出力します．
+`templates/quiz_template.csv` は，テンプレートを使わない場合のCSV出力に使われる組み込みテンプレートです（バイナリに埋め込まれているため，このファイルを編集しても再ビルドするまで `-format csv` の出力は変わりません）．列構成を変えたい場合は，このファイルをコピーして編集し，`-template` で指定してください．
 
 ```text
 {{csvRow "question" "answer" "spell" "criteria"}}
@@ -204,7 +204,8 @@ CSVもテンプレートで列の構成や順序を変えられます．値に�
 ## 出力形式の自動判定
 
 - テンプレートファイル指定時 → テンプレート形式で出力（拡張子が`.csv`でもテンプレートが優先されます）
-- `.csv`拡張子 → 組み込みのCSV形式で出力
+- `.csv`拡張子 → 組み込みのCSV形式（`templates/quiz_template.csv`）で出力
+- `-format html` / `-format markdown` → バイナリに埋め込まれた組み込みテンプレート（`templates/quiz_template.html` / `.md`）で出力（カレントディレクトリに関係なく使えます）
 - その他の拡張子 → テンプレート形式で出力
 
 ## 実用例
