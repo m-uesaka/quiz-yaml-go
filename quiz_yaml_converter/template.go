@@ -41,6 +41,7 @@ func baseTemplateFuncs() map[string]any {
 		"upper":          strings.ToUpper,
 		"lower":          strings.ToLower,
 		"replace":        strings.ReplaceAll,
+		"nl2br":          newlinesToBR,
 		"add": func(a, b int) int {
 			return a + b
 		},
@@ -48,6 +49,17 @@ func baseTemplateFuncs() map[string]any {
 			return time.Now().Format("2006年01月02日 15:04:05")
 		},
 	}
+}
+
+// 改行（\r\n，\r，\n）を <br> に置き換え，値を1行にまとめる．
+// Markdownでは，値に含まれる改行をそのまま出力すると段落が途切れたり，
+// 2行目以降の行頭の # や - や > が見出し・リスト・引用として解釈されたりするため，
+// 改行を行の中で完結する <br> に置き換えて，値がもとの段落の外に出ないようにする．
+// エスケープは行わないため，HTMLとして解釈されたくない値は先に escapeHTML でエスケープする．
+func newlinesToBR(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+	return strings.ReplaceAll(s, "\n", "<br>")
 }
 
 // テンプレートを解析する．

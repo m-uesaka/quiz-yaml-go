@@ -636,6 +636,117 @@ func TestConvertToTemplateHTMLEscapeErrorKeepsExistingOutput(t *testing.T) {
 	}
 }
 
+// nl2brが，各種の改行を <br> に置き換えて値を1行にまとめることを確認する．
+func TestNl2br(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "empty", input: "", expected: ""},
+		{name: "no newline", input: "改行なし", expected: "改行なし"},
+		{name: "LF", input: "1行目\n2行目", expected: "1行目<br>2行目"},
+		{name: "CRLF", input: "1行目\r\n2行目", expected: "1行目<br>2行目"},
+		{name: "CR", input: "1行目\r2行目", expected: "1行目<br>2行目"},
+		{name: "blank line", input: "1行目\n\n3行目", expected: "1行目<br><br>3行目"},
+		{name: "trailing newline", input: "1行目\n", expected: "1行目<br>"},
+		{name: "markdown block markers", input: "# 見出し\n- リスト\n> 引用", expected: "# 見出し<br>- リスト<br>> 引用"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			items := []QuizItem{{Question: tt.input}}
+
+			// Act
+			got, err := executeTemplate(t, `{{range .Items}}{{nl2br .Question}}{{end}}`, false, items)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			if got != tt.expected {
+				t.Errorf("nl2br(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
+// 組み込みのMarkdownテンプレートで，改行を含む値が1行に収まり，
+// 2行目以降が見出し・リスト・引用などとして解釈される行にならないことを確認する．
+func TestBuiltinMarkdownTemplateKeepsMultilineValuesOnOneLine(t *testing.T) {
+	const multiline = "1行目\n# 見出し\n- リスト\n> 引用\n\n<b>空行</b>のあと"
+	const wantValue = "1行目<br># 見出し<br>- リスト<br>&gt; 引用<br><br>&lt;b&gt;空行&lt;/b&gt;のあと"
+
+	tests := []struct {
+		name     string
+		item     QuizItem
+		wantLine string
+	}{
+		{
+			name:     "question",
+			item:     QuizItem{Question: multiline, Answer: "a"},
+			wantLine: "**Q:** " + wantValue,
+		},
+		{
+			name:     "answer",
+			item:     QuizItem{Question: "q", Answer: multiline},
+			wantLine: "**Answer:** " + wantValue,
+		},
+		{
+			name:     "comments",
+			item:     QuizItem{Question: "q", Answer: "a", Comments: []string{multiline}},
+			wantLine: "**Comments:** " + wantValue,
+		},
+		{
+			name:     "criteria",
+			item:     QuizItem{Question: "q", Answer: "a", Criteria: &Criteria{NG: []string{multiline}}},
+			wantLine: "**Criteria:** 「" + wantValue + "」は誤答",
+		},
+		{
+			name:     "CRLF",
+			item:     QuizItem{Question: "1行目\r\n2行目", Answer: "a"},
+			wantLine: "**Q:** 1行目<br>2行目",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			content, err := os.ReadFile(filepath.Join("..", "templates", "quiz_template.md"))
+			if err != nil {
+				t.Fatalf("failed to read template: %v", err)
+			}
+
+			// Act
+			got, err := executeTemplate(t, string(content), false, []QuizItem{tt.item})
+
+			// Assert
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			lines := strings.Split(got, "\n")
+			found := false
+			for _, line := range lines {
+				if line == tt.wantLine {
+					found = true
+				}
+				for _, marker := range []string{"# 見出し", "- リスト", "&gt; 引用", "&lt;b&gt;空行", "2行目"} {
+					if strings.HasPrefix(line, marker) {
+						t.Errorf("output has a line starting with %q:\n%s", marker, got)
+					}
+				}
+				if strings.Contains(line, "\r") {
+					t.Errorf("output has a line containing CR: %q", line)
+				}
+			}
+			if !found {
+				t.Errorf("output does not contain the line %q:\n%s", tt.wantLine, got)
+			}
+		})
+	}
+}
+
 func TestBuiltinMarkdownTemplateEscapesHTML(t *testing.T) {
 	tempDir := t.TempDir()
 	outputFile := filepath.Join(tempDir, "output.md")

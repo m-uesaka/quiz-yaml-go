@@ -74,6 +74,7 @@ type Criteria struct {
 | `len` | スライスの長さ（Go標準） | `{{len .Items}}`, `{{len .OK}}` |
 | `now` | 現在日時 | `{{now}}` |
 | `escapeHTML` | HTMLの特殊文字（`<` `>` `&` `"` `'`）をエスケープ．Markdownなど自動エスケープされないテンプレートで使用（HTMLテンプレートでも二重エスケープされない） | `{{escapeHTML .Question}}` |
+| `nl2br` | 改行（`\n`・`\r\n`・`\r`）を `<br>` に置き換えて値を1行にまとめる（Markdownテンプレート用．エスケープは行わないため `escapeHTML` のあとに使う） | `{{escapeHTML .Question \| nl2br}}` |
 | `safeHTML` | 値をエスケープせずにHTMLとして出力（HTMLテンプレート用．信頼できる値にのみ使用） | `{{join .Comments "<br>" \| safeHTML}}` |
 
 #### 注意
@@ -85,6 +86,21 @@ type Criteria struct {
 ```
   - 別解は`ok`，誤答は`ng`，もう一度は`repeat`キーの値を使用します．
   - 空のリストは出力に含めません．判定基準が無い（`.Criteria` が `nil`）場合は空文字を返します．
+- `nl2br`は，Markdownテンプレートで改行を含む値（YAMLの `|` で書いた複数行の問題文など）を出力するときに使います．
+  - 改行をそのまま出力すると，`**Q:** ...` の段落が空行で途切れたり，2行目以降の行頭の `#`・`-`・`>` などが見出し・リスト・引用として解釈されたりします．`nl2br`は改行を `<br>` に置き換えて値を1行にまとめるため，こうした崩れが起きません．
+  - `{{escapeHTML .Question | nl2br}}` のように，`escapeHTML` のあとに使ってください（先に `nl2br` を使うと，`<br>` もエスケープされて `&lt;br&gt;` になります）．
+  - 組み込みの `quiz_template.md` は，問題文・答え・コメント・判定基準をこの形で出力しています．
+  - HTMLテンプレートでは結果がエスケープされ `&lt;br&gt;` と出力されるため，使わないでください．
+
+```text
+{{escapeHTML .Question | nl2br}}
+```
+
+出力例（問題文が `1行目` と `- 2行目` の2行の場合）:
+
+```text
+1行目<br>- 2行目
+```
 
 ### 以前のバージョンからの移行
 
@@ -125,8 +141,8 @@ type Criteria struct {
 {{range $index, $item := .Items}}
 ## Q{{add $index 1}}
 
-**Q**: {{escapeHTML .Question}}
-**A**: {{escapeHTML .Answer}}
+**Q**: {{escapeHTML .Question | nl2br}}
+**A**: {{escapeHTML .Answer | nl2br}}
 {{if .Spell}}**読み**: {{escapeHTML .Spell}}{{end}}
 {{if .Comments}}**コメント**:
 {{range .Comments}}
