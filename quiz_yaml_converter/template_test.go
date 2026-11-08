@@ -359,15 +359,12 @@ func TestBuiltinTemplateSnapshot(t *testing.T) {
 				t.Fatalf("LoadYAMLData() error = %v", err)
 			}
 			templateFile := filepath.Join("..", "templates", tt.template)
-			content, err := os.ReadFile(templateFile)
-			if err != nil {
-				t.Fatalf("Failed to read template file: %v", err)
-			}
+			content := readFile(t, templateFile)
 			goldenFile := filepath.Join("testdata", tt.golden)
 			htmlMode := isHTMLPath(templateFile) || isHTMLPath(tt.outputName)
 
 			// Act
-			tmpl, err := parseTemplateWithClock(string(content), htmlMode, clock)
+			tmpl, err := parseTemplateWithClock(content, htmlMode, clock)
 			if err != nil {
 				t.Fatalf("parseTemplateWithClock() error = %v", err)
 			}
@@ -410,14 +407,11 @@ func TestBuiltinTemplateSkipsEmptyCriteria(t *testing.T) {
 		for _, criteria := range []*Criteria{{}, {OK: []string{}, NG: []string{}, Repeat: []string{}}} {
 			t.Run(tt.name, func(t *testing.T) {
 				// Arrange
-				content, err := os.ReadFile(tt.path)
-				if err != nil {
-					t.Fatalf("failed to read template: %v", err)
-				}
+				content := readFile(t, tt.path)
 				items := []QuizItem{{Question: "q", Answer: "a", Criteria: criteria}}
 
 				// Act
-				got, err := executeTemplate(t, string(content), tt.htmlMode, items)
+				got, err := executeTemplate(t, content, tt.htmlMode, items)
 
 				// Assert
 				if err != nil {
@@ -561,17 +555,13 @@ A: 答え2
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			templateFile := filepath.Join(tempDir, "template.txt")
 			outputFile := filepath.Join(tempDir, "output.txt")
 
 			// テンプレートファイルを作成
-			err := os.WriteFile(templateFile, []byte(tt.templateContent), 0644)
-			if err != nil {
-				t.Fatalf("Failed to create template file: %v", err)
-			}
+			templateFile := writeFile(t, tempDir, "template.txt", tt.templateContent)
 
 			// テスト実行
-			err = ConvertToTemplate(tt.data, templateFile, outputFile)
+			err := ConvertToTemplate(tt.data, templateFile, outputFile)
 
 			if tt.shouldError {
 				if err == nil {
@@ -585,13 +575,10 @@ A: 答え2
 			}
 
 			// 出力ファイルの内容を確認
-			outputContent, err := os.ReadFile(outputFile)
-			if err != nil {
-				t.Fatalf("Failed to read output file: %v", err)
-			}
+			outputContent := readFile(t, outputFile)
 
-			if string(outputContent) != tt.expectedOutput {
-				t.Errorf("ConvertToTemplate() output = %q, want %q", string(outputContent), tt.expectedOutput)
+			if outputContent != tt.expectedOutput {
+				t.Errorf("ConvertToTemplate() output = %q, want %q", outputContent, tt.expectedOutput)
 			}
 		})
 	}
@@ -623,22 +610,16 @@ func TestConvertToTemplateEscapesHTMLOnly(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tempDir := t.TempDir()
-			templateFile := filepath.Join(tempDir, "template"+tt.templateExt)
+			templateFile := writeFile(t, tempDir, "template"+tt.templateExt, templateContent)
 			outputFile := filepath.Join(tempDir, "output"+tt.outputExt)
-			if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
-				t.Fatalf("Failed to create template file: %v", err)
-			}
 
 			if err := ConvertToTemplate(data, templateFile, outputFile); err != nil {
 				t.Fatalf("ConvertToTemplate() error = %v", err)
 			}
 
-			outputContent, err := os.ReadFile(outputFile)
-			if err != nil {
-				t.Fatalf("Failed to read output file: %v", err)
-			}
-			if string(outputContent) != tt.expectedOutput {
-				t.Errorf("ConvertToTemplate() output = %q, want %q", string(outputContent), tt.expectedOutput)
+			outputContent := readFile(t, outputFile)
+			if outputContent != tt.expectedOutput {
+				t.Errorf("ConvertToTemplate() output = %q, want %q", outputContent, tt.expectedOutput)
 			}
 		})
 	}
@@ -663,22 +644,16 @@ func TestConvertToTemplateSafeHTMLAndEscapeHTML(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.ext, func(t *testing.T) {
 			tempDir := t.TempDir()
-			templateFile := filepath.Join(tempDir, "template"+tt.ext)
+			templateFile := writeFile(t, tempDir, "template"+tt.ext, templateContent)
 			outputFile := filepath.Join(tempDir, "output"+tt.ext)
-			if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
-				t.Fatalf("Failed to create template file: %v", err)
-			}
 
 			if err := ConvertToTemplate(data, templateFile, outputFile); err != nil {
 				t.Fatalf("ConvertToTemplate() error = %v", err)
 			}
 
-			outputContent, err := os.ReadFile(outputFile)
-			if err != nil {
-				t.Fatalf("Failed to read output file: %v", err)
-			}
-			if string(outputContent) != tt.expectedOutput {
-				t.Errorf("output = %q, want %q", string(outputContent), tt.expectedOutput)
+			outputContent := readFile(t, outputFile)
+			if outputContent != tt.expectedOutput {
+				t.Errorf("output = %q, want %q", outputContent, tt.expectedOutput)
 			}
 		})
 	}
@@ -686,29 +661,20 @@ func TestConvertToTemplateSafeHTMLAndEscapeHTML(t *testing.T) {
 
 func TestConvertToTemplateHTMLEscapeErrorKeepsExistingOutput(t *testing.T) {
 	tempDir := t.TempDir()
-	templateFile := filepath.Join(tempDir, "template.html")
-	outputFile := filepath.Join(tempDir, "output.html")
 	// 分岐ごとに終了時のコンテキストが異なるため，html/templateはExecute時にエラーを返す．
 	templateContent := `{{range .Items}}{{if .Spell}}<span title="{{end}}{{.Question}}{{end}}`
-	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
-		t.Fatalf("Failed to create template file: %v", err)
-	}
+	templateFile := writeFile(t, tempDir, "template.html", templateContent)
 	const existing = "existing output"
-	if err := os.WriteFile(outputFile, []byte(existing), 0644); err != nil {
-		t.Fatalf("Failed to create output file: %v", err)
-	}
+	outputFile := writeFile(t, tempDir, "output.html", existing)
 
 	err := ConvertToTemplate([]QuizItem{{Question: "q", Spell: "s"}}, templateFile, outputFile)
 	if err == nil {
 		t.Fatal("ConvertToTemplate() expected an error, got nil")
 	}
 
-	outputContent, readErr := os.ReadFile(outputFile)
-	if readErr != nil {
-		t.Fatalf("Failed to read output file: %v", readErr)
-	}
-	if string(outputContent) != existing {
-		t.Errorf("output file was modified: got %q, want %q", string(outputContent), existing)
+	outputContent := readFile(t, outputFile)
+	if outputContent != existing {
+		t.Errorf("output file was modified: got %q, want %q", outputContent, existing)
 	}
 }
 
@@ -789,13 +755,10 @@ func TestBuiltinMarkdownTemplateKeepsMultilineValuesOnOneLine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			content, err := os.ReadFile(filepath.Join("..", "templates", "quiz_template.md"))
-			if err != nil {
-				t.Fatalf("failed to read template: %v", err)
-			}
+			content := readFile(t, filepath.Join("..", "templates", "quiz_template.md"))
 
 			// Act
-			got, err := executeTemplate(t, string(content), false, []QuizItem{tt.item})
+			got, err := executeTemplate(t, content, false, []QuizItem{tt.item})
 
 			// Assert
 			if err != nil {
@@ -837,11 +800,7 @@ func TestBuiltinMarkdownTemplateEscapesHTML(t *testing.T) {
 		t.Fatalf("ConvertToTemplate() error = %v", err)
 	}
 
-	outputContent, err := os.ReadFile(outputFile)
-	if err != nil {
-		t.Fatalf("Failed to read output file: %v", err)
-	}
-	output := string(outputContent)
+	output := readFile(t, outputFile)
 	for _, raw := range []string{"<img", "<b>", "<i>", "<u>"} {
 		if strings.Contains(output, raw) {
 			t.Errorf("output contains unescaped %q:\n%s", raw, output)
@@ -858,19 +817,13 @@ func TestBuiltinMarkdownTemplateEscapesHTML(t *testing.T) {
 func TestConvertToTemplate_ExecutionErrorKeepsExistingOutput(t *testing.T) {
 	// Arrange
 	tempDir := t.TempDir()
-	templateFile := filepath.Join(tempDir, "template.csv")
-	outputFile := filepath.Join(tempDir, "output.csv")
 	existing := "existing,content\n"
-	if err := os.WriteFile(outputFile, []byte(existing), 0644); err != nil {
-		t.Fatalf("Failed to create output file: %v", err)
-	}
+	outputFile := writeFile(t, tempDir, "output.csv", existing)
 	// ヘッダ行の出力後，csvRowに[]stringを渡して実行時エラーにする
 	templateContent := `{{csvRow "question" "tags"}}
 {{range .Items}}{{csvRow .Question .Tags}}
 {{end}}`
-	if err := os.WriteFile(templateFile, []byte(templateContent), 0644); err != nil {
-		t.Fatalf("Failed to create template file: %v", err)
-	}
+	templateFile := writeFile(t, tempDir, "template.csv", templateContent)
 	data := []QuizItem{{Question: "問題1", Answer: "答え1", Tags: []string{"tag"}}}
 
 	// Act
@@ -880,11 +833,8 @@ func TestConvertToTemplate_ExecutionErrorKeepsExistingOutput(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error, but got nil")
 	}
-	got, readErr := os.ReadFile(outputFile)
-	if readErr != nil {
-		t.Fatalf("Failed to read output file: %v", readErr)
-	}
-	if string(got) != existing {
-		t.Errorf("output file = %q, want unchanged %q", string(got), existing)
+	got := readFile(t, outputFile)
+	if got != existing {
+		t.Errorf("output file = %q, want unchanged %q", got, existing)
 	}
 }
