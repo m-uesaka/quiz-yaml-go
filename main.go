@@ -8,10 +8,10 @@
 //
 // Usage:
 //
-//	converter -input quiz.yaml -output quiz.csv
-//	converter -input quiz.yaml -output quiz.html -format html
-//	converter -input quiz.yaml -output quiz.md -format markdown
-//	converter -input quiz.yaml -output custom.html -template my_template.html
+//	quiz-yaml-go -input quiz.yaml -output quiz.csv
+//	quiz-yaml-go -input quiz.yaml -output quiz.html -format html
+//	quiz-yaml-go -input quiz.yaml -output quiz.md -format markdown
+//	quiz-yaml-go -input quiz.yaml -output custom.html -template my_template.html
 //
 // YAMLフォーマットを変換するメインスクリプト
 package main

@@ -181,11 +181,11 @@ YAMLファイルの形式，テンプレートの書き方，CLIの引数は変�
 
 ```bash
 go get github.com/m-uesaka/quiz-yaml-go/v2@latest
-# importパスとパッケージ名を置き換える（macOSの場合は sed -i '' とする）
-grep -rl 'quiz_yaml_converter' --include='*.go' . | xargs sed -i \
-  -e 's#github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter#github.com/m-uesaka/quiz-yaml-go/v2/quizconv#' \
-  -e 's#github.com/m-uesaka/quiz-yaml-go/templates#github.com/m-uesaka/quiz-yaml-go/v2/templates#' \
-  -e 's#quiz_yaml_converter\.#quizconv.#g'
+# importパスとパッケージ名を置き換える（perl を使うため，macOS・Linux のどちらでもそのまま実行できる）
+grep -rlE 'quiz_yaml_converter|m-uesaka/quiz-yaml-go/' --include='*.go' . | xargs perl -pi \
+  -e 's#github\.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter#github.com/m-uesaka/quiz-yaml-go/v2/quizconv#g;' \
+  -e 's#github\.com/m-uesaka/quiz-yaml-go/templates#github.com/m-uesaka/quiz-yaml-go/v2/templates#g;' \
+  -e 's#\bquiz_yaml_converter\.#quizconv.#g;'
 go mod tidy
 ```
 

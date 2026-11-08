@@ -3,6 +3,7 @@
 //	import "github.com/m-uesaka/quiz-yaml-go/v2/quizconv"
 //
 // v1.x までは quiz_yaml_converter というパッケージ名（import "github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter"）でした．
+//
 // このパッケージが提供する機能は以下の通りです：
 //   - YAMLファイルからの問題データの読み込み
 //   - 日本語テキストを適切に処理したCSV形式への変換

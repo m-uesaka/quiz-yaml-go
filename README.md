@@ -34,8 +34,11 @@ go run main.go -markdown-dir path/to/quiz -recursive -output quiz.yaml
 ### go install でインストールする方法
 
 ```bash
-# v2.0.0 以降はモジュールのパスに /v2 が付く
+# v2.0.0 のリリース後は，モジュールのパスに /v2 を付ける
 go install github.com/m-uesaka/quiz-yaml-go/v2@latest
+
+# v2.0.0 のリリース前（v1.x）は，/v2 を付けない
+go install github.com/m-uesaka/quiz-yaml-go@latest
 
 # インストールしたバイナリ（$(go env GOPATH)/bin/quiz-yaml-go）を使用
 quiz-yaml-go -input quiz.yaml -output quiz.csv
@@ -45,11 +48,11 @@ quiz-yaml-go -input quiz.yaml -output quiz.csv
 
 ```bash
 # アプリケーションをビルド
-go build -o quiz-yaml-converter
+go build -o quiz-yaml-go
 
 # ビルドしたバイナリを使用
-./quiz-yaml-converter -input quiz.yaml -output quiz.csv
-./quiz-yaml-converter -input quiz.yaml -output quiz.html -format html
+./quiz-yaml-go -input quiz.yaml -output quiz.csv
+./quiz-yaml-go -input quiz.yaml -output quiz.html -format html
 ```
 
 ### テストの実行方法
@@ -97,7 +100,7 @@ task fmt
 go run main.go -input quiz.yaml -validate
 
 # ビルド済みバイナリを使用
-./quiz-yaml-converter -input quiz.yaml -validate
+./quiz-yaml-go -input quiz.yaml -validate
 ```
 
 `-validate` を指定しない通常の変換や `-markdown-dir` での集約でも同じ内容をチェックし，問題があれば標準エラー出力に警告を表示します．
@@ -174,31 +177,31 @@ quiz-yaml-go/
 
 ```bash
 # ヘルプを表示
-./quiz-yaml-converter -help
+./quiz-yaml-go -help
 
 # YAMLファイルのバリデーション（変換は行わない）
-./quiz-yaml-converter -input quiz.yaml -validate
+./quiz-yaml-go -input quiz.yaml -validate
 
 # 基本的なCSV変換
-./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.csv
+./quiz-yaml-go -input data/quiz.yaml -output output/quiz.csv
 
 # HTML形式で出力（formatオプションを指定）
-./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.html -format html
+./quiz-yaml-go -input data/quiz.yaml -output output/quiz.html -format html
 
 # 拡張子が.csvでないファイルにCSVを出力（formatオプションを指定）
-./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.txt -format csv
+./quiz-yaml-go -input data/quiz.yaml -output output/quiz.txt -format csv
 
 # カスタムテンプレートを使用
-./quiz-yaml-converter -input data/quiz.yaml -output output/custom.txt -template templates/custom.tmpl
+./quiz-yaml-go -input data/quiz.yaml -output output/custom.txt -template templates/custom.tmpl
 
 # テンプレートを使ってCSVの列構成をカスタマイズ
-./quiz-yaml-converter -input data/quiz.yaml -output output/quiz.csv -template templates/quiz_template.csv
+./quiz-yaml-go -input data/quiz.yaml -output output/quiz.csv -template templates/quiz_template.csv
 
 # Markdownディレクトリを1つのYAMLファイルに集約
-./quiz-yaml-converter -markdown-dir data/quiz -output output/quiz.yaml
+./quiz-yaml-go -markdown-dir data/quiz -output output/quiz.yaml
 
 # サブディレクトリも再帰的に辿って集約
-./quiz-yaml-converter -markdown-dir data/quiz -recursive -output output/quiz.yaml
+./quiz-yaml-go -markdown-dir data/quiz -recursive -output output/quiz.yaml
 ```
 
 ## テンプレートファイルの書き方

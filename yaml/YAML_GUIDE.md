@@ -113,8 +113,8 @@ comments: ["コメント1", "コメント2"]
 go run main.go -input quiz.yaml -validate
 
 # ビルド済みバイナリを使用
-go build -o quiz-yaml-converter
-./quiz-yaml-converter -input quiz.yaml -validate
+go build -o quiz-yaml-go
+./quiz-yaml-go -input quiz.yaml -validate
 ```
 
 次のような問題が見つかると，バリデーションは失敗します（終了コード1）．
