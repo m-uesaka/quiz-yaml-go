@@ -369,3 +369,149 @@ func TestRun_ValidateFailure(t *testing.T) {
 		t.Errorf("stderr = %q, want error detail", stderr)
 	}
 }
+
+// 変換時にバリデーションの問題があっても，警告を表示して変換を続け，終了コード0になることを確認する．
+func TestRun_ConvertWithWarnings(t *testing.T) {
+	const content = "- question: 問題文1\n  answer: \"\"\n- question: \"\"\n  answer: 答え2\n  tags: [\"\"]\n"
+	const wantStderr = "⚠️ 警告: 問題 1: 答え (answer) が空です\n" +
+		"⚠️ 警告: 問題 2: 問題文 (question) が空です\n" +
+		"⚠️ 警告: 問題 2: tags[0] が空です\n"
+
+	tests := []struct {
+		name        string
+		outputName  string
+		extraArgs   func(t *testing.T, dir string) []string
+		wantMessage string
+		wantContent string
+	}{
+		{
+			name:        "csv",
+			outputName:  "quiz.csv",
+			extraArgs:   func(_ *testing.T, _ string) []string { return []string{"-format", "csv"} },
+			wantMessage: "✅ CSV変換完了: ",
+			wantContent: "問題文1",
+		},
+		{
+			name:        "markdown",
+			outputName:  "quiz.md",
+			extraArgs:   func(_ *testing.T, _ string) []string { return []string{"-format", "markdown"} },
+			wantMessage: "✅ Markdown変換完了: ",
+			wantContent: "答え2",
+		},
+		{
+			name:       "template",
+			outputName: "quiz.txt",
+			extraArgs: func(t *testing.T, dir string) []string {
+				return []string{"-template", writeFile(t, dir, "custom.tmpl", "{{range .Items}}[{{.Answer}}]{{end}}")}
+			},
+			wantContent: "[][答え2]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			input := writeFile(t, dir, "warn.yaml", content)
+			output := filepath.Join(dir, tt.outputName)
+			args := append([]string{"-input", input, "-output", output}, tt.extraArgs(t, dir)...)
+
+			// Act
+			code, stdout, stderr := runCLI(args...)
+
+			// Assert
+			if code != 0 {
+				t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+			}
+			if stderr != wantStderr {
+				t.Errorf("stderr = %q, want %q", stderr, wantStderr)
+			}
+			if !strings.HasPrefix(stdout, "✅ ") || !strings.Contains(stdout, tt.wantMessage) {
+				t.Errorf("stdout = %q, want success message %q", stdout, tt.wantMessage)
+			}
+			if got := readFile(t, output); !strings.Contains(got, tt.wantContent) {
+				t.Errorf("output = %q, want it to contain %q", got, tt.wantContent)
+			}
+		})
+	}
+}
+
+// criteria の不正なキーは警告ではなく，従来どおり変換エラーになることを確認する．
+func TestRun_ConvertUnknownCriteriaKeyIsError(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	input := writeFile(t, dir, "invalid.yaml", "- question: 問題文\n  answer: \"\"\n  criteria:\n    maybe: [m1]\n")
+	output := filepath.Join(dir, "quiz.csv")
+
+	// Act
+	code, stdout, stderr := runCLI("-input", input, "-output", output)
+
+	// Assert
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty", stdout)
+	}
+	if !strings.HasPrefix(stderr, "❌ エラー: ") || !strings.Contains(stderr, "不正なcriteriaキー: 'maybe'") {
+		t.Errorf("stderr = %q, want unknown criteria key error", stderr)
+	}
+	if strings.Contains(stderr, "⚠️ 警告: ") {
+		t.Errorf("stderr should not contain warnings: %q", stderr)
+	}
+}
+
+// Markdownの集約時にバリデーションの問題があっても，警告を表示してYAMLを書き出し，終了コード0になることを確認する．
+func TestRun_MarkdownDirToYAMLWithWarnings(t *testing.T) {
+	// Arrange
+	mdDir := t.TempDir()
+	writeFile(t, mdDir, "a.md", "---\ntitle: 自作問題-A\n---\n## Question\n\n問題文A\n\n## Answer\n\n答えA\n")
+	writeFile(t, mdDir, "b.md", "---\ntitle: 自作問題-B\n---\n## Question\n\n問題文B\n\n## Answer\n\n## Spell\n\n")
+	output := filepath.Join(t.TempDir(), "quiz.yaml")
+
+	// Act
+	code, stdout, stderr := runCLI("-markdown-dir", mdDir, "-output", output)
+
+	// Assert
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0 (stderr: %s)", code, stderr)
+	}
+	wantStdout := "✅ Markdown集約完了: " + mdDir + " → " + output + "\n"
+	if stdout != wantStdout {
+		t.Errorf("stdout = %q, want %q", stdout, wantStdout)
+	}
+	wantStderr := "⚠️ 警告: 問題 2 (" + filepath.Join(mdDir, "b.md") + "): 答え (answer) が空です\n"
+	if stderr != wantStderr {
+		t.Errorf("stderr = %q, want %q", stderr, wantStderr)
+	}
+	if got := readFile(t, output); !strings.Contains(got, "問題文B") {
+		t.Errorf("output does not contain %q: %q", "問題文B", got)
+	}
+}
+
+// 一部のMarkdownファイルの変換に失敗した場合も，変換できたファイルの警告をエラーと一緒に表示することを確認する．
+func TestRun_MarkdownDirToYAMLWarningsWithParseError(t *testing.T) {
+	// Arrange
+	mdDir := t.TempDir()
+	writeFile(t, mdDir, "a.md", "frontmatterなし\n")
+	writeFile(t, mdDir, "b.md", "---\ntitle: 自作問題-B\n---\n## Question\n\n問題文B\n\n## Answer\n\n")
+	output := filepath.Join(t.TempDir(), "quiz.yaml")
+
+	// Act
+	code, _, stderr := runCLI("-markdown-dir", mdDir, "-output", output)
+
+	// Assert
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1 (stderr: %s)", code, stderr)
+	}
+	wantWarning := "⚠️ 警告: 問題 1 (" + filepath.Join(mdDir, "b.md") + "): 答え (answer) が空です\n"
+	if !strings.Contains(stderr, wantWarning) {
+		t.Errorf("stderr = %q, want it to contain %q", stderr, wantWarning)
+	}
+	if !strings.Contains(stderr, "❌ エラー: ") || !strings.Contains(stderr, filepath.Join(mdDir, "a.md")) {
+		t.Errorf("stderr = %q, want parse error for a.md", stderr)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Errorf("output file should not be written: stat error = %v", err)
+	}
+}

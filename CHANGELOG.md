@@ -11,7 +11,22 @@
 
 ## [Unreleased]
 
+### 追加
+
+- 通常の変換と `-markdown-dir` での集約でもバリデーションを行い，問題があれば標準エラー出力に警告を表示するようにした（#18）
+  - `-validate` と同じ内容（クイズデータが1件もない，空の問題文・答え，空の要素）をチェックする
+  - 警告があっても出力ファイルは書き出され，終了コードは0になる
+  - criteria の不正なキーは，従来どおり変換エラーになる
+  - `-markdown-dir` での警告には，元になったMarkdownファイルのパスを表示する
+  - 一部のMarkdownファイルの変換に失敗した場合も，変換できたファイルの警告をエラーと一緒に表示する
+- Goのパッケージに，データを受け取ってバリデーションする `ValidateItems` と，構造化したエラー型 `ValidationError` を追加（#18）
+  - `ValidationResult` に構造化したエラーの `Details` フィールドを追加（`Errors` は従来どおり）
+  - 警告を返す `ConvertWithWarnings` / `ConvertMarkdownDirToYAMLWithWarnings` を追加
+  - `ValidationError` に，元になったファイルのパスを表す `Source` フィールドを追加
+
 ### 変更
+
+- バリデーション処理を整理し，空要素のチェックを共通化した（#18）
 
 - `-markdown-dir` で `-recursive` を指定しない場合も，拡張子の大文字・小文字を区別せずにMarkdownファイルを集めるようにした（#19）
   - `QUIZ.MD` や `quiz.Md` も対象になる（`-recursive` を指定した場合は以前からこの動作だった）

@@ -117,6 +117,21 @@ go build -o quiz-yaml-converter
 ./quiz-yaml-converter -input quiz.yaml -validate
 ```
 
+次のような問題が見つかると，バリデーションは失敗します（終了コード1）．
+
+- クイズデータが1件もない（空のファイルや `[]` のみ）
+- 問題文 (`question`) や答え (`answer`) が空（空白のみを含む）
+- `criteria` の `ok` / `ng` / `repeat`，`comments`，`tags` に空の要素がある
+- `criteria` に `ok` / `ng` / `repeat` 以外のキーがある
+
+`-validate` を指定せずに変換した場合も，同じ内容をチェックして標準エラー出力に警告を表示します．
+警告があっても変換は行われ，終了コードは0になります．ただし `criteria` の不正なキーは，警告ではなく変換エラーになります．
+
+```
+⚠️ 警告: 問題 1: 答え (answer) が空です
+✅ CSV変換完了: quiz.yaml → quiz.csv
+```
+
 ## トラブルシューティング
 
 ### よくあるエラー
