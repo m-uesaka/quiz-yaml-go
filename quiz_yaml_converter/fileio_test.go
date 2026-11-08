@@ -369,3 +369,206 @@ func TestSaveYAMLDataNewFileMode(t *testing.T) {
 		t.Errorf("mode = %v, want %v", got, want)
 	}
 }
+
+// 途中のディレクトリがシンボリックリンクで，その中のリンクが相対パスで「..」を含む場合に，
+// カーネル（os.WriteFile）と同じく，ディレクトリの実際の場所を基準にリンク先を解決することを確認する．
+func TestWriteFileAtomicRelativeSymlinkThroughSymlinkedDir(t *testing.T) {
+	tests := []struct {
+		name         string
+		targetExists bool
+	}{
+		{name: "link to existing file", targetExists: true},
+		{name: "dangling link", targetExists: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			// dir/proj/out/quiz.csv -> ../shared/quiz.csv（実体は dir/proj/shared/quiz.csv）
+			// dir/outlink -> dir/proj/out
+			dir := t.TempDir()
+			for _, d := range []string{filepath.Join(dir, "proj", "out"), filepath.Join(dir, "proj", "shared")} {
+				if err := os.MkdirAll(d, 0o755); err != nil {
+					t.Fatalf("failed to mkdir: %v", err)
+				}
+			}
+			target := filepath.Join(dir, "proj", "shared", "quiz.csv")
+			if tt.targetExists {
+				if err := os.WriteFile(target, []byte("古い内容"), 0o644); err != nil {
+					t.Fatalf("failed to write target: %v", err)
+				}
+			}
+			if err := os.Symlink(filepath.Join("..", "shared", "quiz.csv"), filepath.Join(dir, "proj", "out", "quiz.csv")); err != nil {
+				t.Skipf("symlink is not available: %v", err)
+			}
+			outlink := filepath.Join(dir, "outlink")
+			if err := os.Symlink(filepath.Join(dir, "proj", "out"), outlink); err != nil {
+				t.Skipf("symlink is not available: %v", err)
+			}
+			const content = "新しい内容"
+
+			// Act
+			err := writeFileAtomic(filepath.Join(outlink, "quiz.csv"), []byte(content), 0o666)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("writeFileAtomic() error = %v", err)
+			}
+			if got := readFileString(t, target); got != content {
+				t.Errorf("target content = %q, want %q", got, content)
+			}
+			if got := listDir(t, dir); !slices.Equal(got, []string{"outlink", "proj"}) {
+				t.Errorf("dir entries = %v, want [outlink proj] (no file created in the wrong place)", got)
+			}
+			if got := listDir(t, filepath.Join(dir, "proj", "shared")); !slices.Equal(got, []string{"quiz.csv"}) {
+				t.Errorf("shared dir entries = %v, want only quiz.csv", got)
+			}
+		})
+	}
+}
+
+// 出力先が通常のファイル以外（デバイスファイル）の場合に，置き換えずにそのまま書き込むことを確認する．
+func TestWriteFileAtomicNonRegularFile(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("/dev/null is not available on Windows")
+	}
+	tests := []struct {
+		name    string
+		useLink bool
+	}{
+		{name: "device file", useLink: false},
+		{name: "symlink to device file", useLink: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			path := os.DevNull
+			if tt.useLink {
+				path = filepath.Join(dir, "null")
+				if err := os.Symlink(os.DevNull, path); err != nil {
+					t.Skipf("symlink is not available: %v", err)
+				}
+			}
+
+			// Act
+			err := writeFileAtomic(path, []byte("内容"), 0o666)
+
+			// Assert
+			if err != nil {
+				t.Fatalf("writeFileAtomic(%q) error = %v", path, err)
+			}
+			info, err := os.Stat(os.DevNull)
+			if err != nil {
+				t.Fatalf("failed to stat %s: %v", os.DevNull, err)
+			}
+			if info.Mode().IsRegular() {
+				t.Errorf("%s was replaced by a regular file", os.DevNull)
+			}
+			if tt.useLink {
+				if got := listDir(t, dir); !slices.Equal(got, []string{"null"}) {
+					t.Errorf("dir entries = %v, want only the link", got)
+				}
+			}
+		})
+	}
+}
+
+// 書き込む権限の無い既存のファイル（読み取り専用）を置き換えず，エラーを返すことを確認する．
+func TestWriteFileAtomicReadOnlyFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to read-only files")
+	}
+	// Arrange
+	dir := t.TempDir()
+	path := filepath.Join(dir, "quiz.csv")
+	const original = "保護した内容"
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := os.Chmod(path, 0o444); err != nil {
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+
+	// Act
+	err := writeFileAtomic(path, []byte("新しい内容"), 0o666)
+
+	// Assert
+	if !errors.Is(err, fs.ErrPermission) {
+		t.Fatalf("writeFileAtomic() error = %v, want permission error", err)
+	}
+	if got := readFileString(t, path); got != original {
+		t.Errorf("content = %q, want %q (unchanged)", got, original)
+	}
+	if got := listDir(t, dir); !slices.Equal(got, []string{"quiz.csv"}) {
+		t.Errorf("dir entries = %v, want only quiz.csv", got)
+	}
+}
+
+// ディレクトリに書き込む権限が無くても，既存のファイルに書き込めれば，従来どおりそのまま書き込むことを確認する．
+func TestWriteFileAtomicReadOnlyDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("directory permissions are not supported on Windows")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to read-only directories")
+	}
+	// Arrange
+	dir := filepath.Join(t.TempDir(), "readonly")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("failed to mkdir: %v", err)
+	}
+	path := filepath.Join(dir, "quiz.csv")
+	if err := os.WriteFile(path, []byte("古い内容"), 0o644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatalf("failed to chmod: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	const content = "新しい内容"
+
+	// Act
+	err := writeFileAtomic(path, []byte(content), 0o666)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("writeFileAtomic() error = %v", err)
+	}
+	if got := readFileString(t, path); got != content {
+		t.Errorf("content = %q, want %q", got, content)
+	}
+	if got := listDir(t, dir); !slices.Equal(got, []string{"quiz.csv"}) {
+		t.Errorf("dir entries = %v, want only quiz.csv", got)
+	}
+}
+
+// 名前の長さの上限に近い長いファイル名でも書き込めることを確認する（一時ファイルの名前に出力先の名前を含めない）．
+func TestWriteFileAtomicLongFileName(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	// 多くのファイルシステムで名前の長さの上限は255バイト（または255文字）．
+	// 以前の一時ファイルの名前（「.」+ 出力先の名前 + 「.tmp」+ 乱数）では上限を超える長さにする．
+	name := strings.Repeat("a", 247) + ".csv" // 251文字
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte("古い内容"), 0o644); err != nil {
+		t.Skipf("the file system does not support this file name: %v", err)
+	}
+	const content = "新しい内容"
+
+	// Act
+	err := writeFileAtomic(path, []byte(content), 0o666)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("writeFileAtomic() error = %v", err)
+	}
+	if got := readFileString(t, path); got != content {
+		t.Errorf("content = %q, want %q", got, content)
+	}
+	if got := listDir(t, dir); !slices.Equal(got, []string{name}) {
+		t.Errorf("dir entries = %v, want only %q", got, name)
+	}
+}
