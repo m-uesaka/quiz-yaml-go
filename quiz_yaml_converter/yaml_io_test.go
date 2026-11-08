@@ -214,3 +214,17 @@ func TestUnknownCriteriaKeysInMergeAreReported(t *testing.T) {
 		})
 	}
 }
+
+// YAMLとして解析できないファイルを読み込んだ場合に，解析に失敗したことを表すエラーを返すことを確認する．
+func TestLoadYAMLDataParseError(t *testing.T) {
+	// Arrange
+	path := writeTempYAML(t, "- question: [閉じていない配列\n")
+
+	// Act
+	_, err := LoadYAMLData(path)
+
+	// Assert
+	if err == nil || !strings.HasPrefix(err.Error(), "YAMLの解析に失敗しました: ") {
+		t.Errorf("LoadYAMLData() error = %v, want YAMLの解析に失敗しました", err)
+	}
+}

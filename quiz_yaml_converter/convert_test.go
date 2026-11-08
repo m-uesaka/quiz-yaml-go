@@ -292,7 +292,7 @@ func TestWriteOutputUnsupportedFormat(t *testing.T) {
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), `未対応の出力形式です: "json"`) {
-		t.Fatalf("writeOutput() error = %v, want unsupported output format error", err)
+		t.Fatalf("writeOutput() error = %v, want 未対応の出力形式のエラー", err)
 	}
 	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
 		t.Errorf("output file should not be written: stat error = %v", statErr)

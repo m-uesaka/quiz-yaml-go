@@ -216,6 +216,6 @@ func TestLookupBuiltinTemplateUnsupported(t *testing.T) {
 
 	// Assert
 	if err == nil || !strings.Contains(err.Error(), `未対応の組み込みテンプレートです: "pdf"`) {
-		t.Errorf("lookupBuiltinTemplate() error = %v, want unsupported builtin template error", err)
+		t.Errorf("lookupBuiltinTemplate() error = %v, want 未対応の組み込みテンプレートのエラー", err)
 	}
 }
