@@ -67,13 +67,31 @@ func ConvertMarkdownDirToYAML(mdDirPath, yamlFilePath string, recursive bool) er
 
 // ConvertMarkdownDirToYAMLWithWarnings は ConvertMarkdownDirToYAML と同じ集約を行い，
 // 集約したデータを ValidateItems でバリデーションした結果を警告として返す．
-// 警告の問題番号は，出力するYAMLファイルでの順番（1始まり）を表す．
-// 警告があってもYAMLファイルは書き出す．集約に失敗した場合は警告を返さない．
+// 警告の問題番号は出力するYAMLファイルでの順番（1始まり）を表し，Source には
+// 元になったMarkdownファイルのパスを設定する．
+// 警告があってもYAMLファイルは書き出す．一部のファイルの変換に失敗した場合は
+// YAMLファイルを書き出さないが，変換できたファイルの警告はエラーと一緒に返す．
 func ConvertMarkdownDirToYAMLWithWarnings(mdDirPath, yamlFilePath string, recursive bool) ([]ValidationError, error) {
-	items, err := AggregateMarkdownDir(mdDirPath, recursive)
+	items, sources, err := aggregateMarkdownDir(mdDirPath, recursive)
 	if err != nil {
-		return nil, err
+		if len(items) == 0 {
+			return nil, err
+		}
+		return validateMarkdownItems(items, sources), err
 	}
-	warnings := ValidateItems(items)
+	warnings := validateMarkdownItems(items, sources)
 	return warnings, SaveYAMLData(items, yamlFilePath)
+}
+
+// validateMarkdownItems は集約したデータを ValidateItems でバリデーションし，
+// 各警告の Source に元になったMarkdownファイルのパスを設定する．
+// sources[i] は items[i] のファイルのパス．
+func validateMarkdownItems(items []QuizItem, sources []string) []ValidationError {
+	warnings := ValidateItems(items)
+	for i := range warnings {
+		if n := warnings[i].Item; n >= 1 && n <= len(sources) {
+			warnings[i].Source = sources[n-1]
+		}
+	}
+	return warnings
 }

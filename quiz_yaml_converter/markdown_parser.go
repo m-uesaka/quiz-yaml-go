@@ -297,7 +297,7 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 }
 
 // AggregateMarkdownDir は指定ディレクトリ以下の*.mdファイルをすべて読み込み，
-// QuizItemのスライスとして返す．ファイル名でソートすることで，実行するたびに
+// QuizItemのスライスとして返す．パスでソートすることで，実行するたびに
 // 出力順序が安定するようにする．recursiveがtrueの場合はサブディレクトリも
 // 再帰的に辿る．
 //
@@ -309,16 +309,24 @@ func collectMarkdownFiles(dirPath string, recursive bool) ([]string, error) {
 // エラーを errors.Join で集約したエラーの両方を返す．呼び出し側は errors.Is /
 // errors.As で個々のエラーを扱える．
 func AggregateMarkdownDir(dirPath string, recursive bool) ([]QuizItem, error) {
+	items, _, err := aggregateMarkdownDir(dirPath, recursive)
+	return items, err
+}
+
+// aggregateMarkdownDir は AggregateMarkdownDir と同じ処理を行い，各QuizItemの元になった
+// ファイルのパスも返す．sources[i] は items[i] のファイルのパス．
+func aggregateMarkdownDir(dirPath string, recursive bool) (items []QuizItem, sources []string, err error) {
 	paths, err := collectMarkdownFiles(dirPath, recursive)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if len(paths) == 0 {
-		return nil, fmt.Errorf("Markdownファイル（拡張子が .md のファイル）が見つかりません: %s", dirPath)
+		return nil, nil, fmt.Errorf("Markdownファイル（拡張子が .md のファイル）が見つかりません: %s", dirPath)
 	}
 	sort.Strings(paths)
 
-	items := make([]QuizItem, 0, len(paths))
+	items = make([]QuizItem, 0, len(paths))
+	sources = make([]string, 0, len(paths))
 	var errs []error
 	for _, p := range paths {
 		item, err := ParseMarkdownFile(p)
@@ -327,9 +335,10 @@ func AggregateMarkdownDir(dirPath string, recursive bool) ([]QuizItem, error) {
 			continue
 		}
 		items = append(items, item)
+		sources = append(sources, p)
 	}
 	if len(errs) > 0 {
-		return items, fmt.Errorf("一部のファイルの変換に失敗しました:\n%w", errors.Join(errs...))
+		return items, sources, fmt.Errorf("一部のファイルの変換に失敗しました:\n%w", errors.Join(errs...))
 	}
-	return items, nil
+	return items, sources, nil
 }

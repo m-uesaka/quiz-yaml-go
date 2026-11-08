@@ -480,11 +480,38 @@ func TestRun_MarkdownDirToYAMLWithWarnings(t *testing.T) {
 	if stdout != wantStdout {
 		t.Errorf("stdout = %q, want %q", stdout, wantStdout)
 	}
-	wantStderr := "⚠️ 警告: 問題 2: 答え (answer) が空です\n"
+	wantStderr := "⚠️ 警告: 問題 2 (" + filepath.Join(mdDir, "b.md") + "): 答え (answer) が空です\n"
 	if stderr != wantStderr {
 		t.Errorf("stderr = %q, want %q", stderr, wantStderr)
 	}
 	if got := readFile(t, output); !strings.Contains(got, "問題文B") {
 		t.Errorf("output does not contain %q: %q", "問題文B", got)
+	}
+}
+
+// 一部のMarkdownファイルの変換に失敗した場合も，変換できたファイルの警告をエラーと一緒に表示することを確認する．
+func TestRun_MarkdownDirToYAMLWarningsWithParseError(t *testing.T) {
+	// Arrange
+	mdDir := t.TempDir()
+	writeFile(t, mdDir, "a.md", "frontmatterなし\n")
+	writeFile(t, mdDir, "b.md", "---\ntitle: 自作問題-B\n---\n## Question\n\n問題文B\n\n## Answer\n\n")
+	output := filepath.Join(t.TempDir(), "quiz.yaml")
+
+	// Act
+	code, _, stderr := runCLI("-markdown-dir", mdDir, "-output", output)
+
+	// Assert
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1 (stderr: %s)", code, stderr)
+	}
+	wantWarning := "⚠️ 警告: 問題 1 (" + filepath.Join(mdDir, "b.md") + "): 答え (answer) が空です\n"
+	if !strings.Contains(stderr, wantWarning) {
+		t.Errorf("stderr = %q, want it to contain %q", stderr, wantWarning)
+	}
+	if !strings.Contains(stderr, "❌ エラー: ") || !strings.Contains(stderr, filepath.Join(mdDir, "a.md")) {
+		t.Errorf("stderr = %q, want parse error for a.md", stderr)
+	}
+	if _, err := os.Stat(output); !os.IsNotExist(err) {
+		t.Errorf("output file should not be written: stat error = %v", err)
 	}
 }

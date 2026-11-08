@@ -98,7 +98,13 @@ go run main.go -input quiz.yaml -validate
 ✅ CSV変換完了: quiz.yaml → quiz.csv
 ```
 
-`-markdown-dir` での警告の問題番号は，出力されるYAMLファイルでの順番（ファイル名順）を表します．
+`-markdown-dir` での警告には，出力されるYAMLファイルでの問題番号（パス順）に加えて，元になったMarkdownファイルのパスを表示します．
+一部のファイルの変換に失敗した場合はYAMLファイルを書き出しませんが，変換できたファイルの警告はエラーと一緒に表示します．
+
+```
+⚠️ 警告: 問題 2 (quizzes/b.md): 答え (answer) が空です
+✅ Markdown集約完了: quizzes → quiz.yaml
+```
 
 ## ディレクトリ構造
 

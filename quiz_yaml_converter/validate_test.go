@@ -167,6 +167,8 @@ func TestValidationErrorFormat(t *testing.T) {
 		{name: "item-level error", err: ValidationError{Item: 1, Field: "answer", Message: "答え (answer) が空です"}, want: "問題 1: 答え (answer) が空です"},
 		{name: "item number over 9", err: ValidationError{Item: 12, Field: "criteria.ok[0]", Message: "criteria.ok[0] が空です"}, want: "問題 12: criteria.ok[0] が空です"},
 		{name: "file-level error", err: ValidationError{Message: "YAMLファイルにクイズデータが含まれていません"}, want: "YAMLファイルにクイズデータが含まれていません"},
+		{name: "item-level error with source", err: ValidationError{Item: 3, Field: "answer", Message: "答え (answer) が空です", Source: "md/sub/c.md"}, want: "問題 3 (md/sub/c.md): 答え (answer) が空です"},
+		{name: "file-level error with source", err: ValidationError{Message: "読み込めません", Source: "md/c.md"}, want: "md/c.md: 読み込めません"},
 	}
 
 	for _, tt := range tests {

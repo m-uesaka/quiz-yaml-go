@@ -14,13 +14,21 @@ type ValidationError struct {
 	Item    int    // 問題番号（1始まり）．ファイル全体に関する問題の場合は0
 	Field   string // 問題のあるフィールド（例: "answer", "criteria.ok[1]"）．特定のフィールドに関係しない場合は空文字
 	Message string // 問題番号を含まないメッセージ（例: "答え (answer) が空です"）
+	Source  string // 問題の元になったファイルのパス（Markdownの集約時に設定）．不明な場合は空文字
 }
 
 // Error は問題番号を含めたメッセージを返す．
 // Itemが1以上の場合は「問題 <Item>: <Message>」，0の場合はMessageをそのまま返す．
+// Sourceが設定されている場合は「問題 <Item> (<Source>): <Message>」のように元のファイルを示す．
 func (e ValidationError) Error() string {
 	if e.Item <= 0 {
+		if e.Source != "" {
+			return fmt.Sprintf("%s: %s", e.Source, e.Message)
+		}
 		return e.Message
+	}
+	if e.Source != "" {
+		return fmt.Sprintf("問題 %d (%s): %s", e.Item, e.Source, e.Message)
 	}
 	return fmt.Sprintf("問題 %d: %s", e.Item, e.Message)
 }

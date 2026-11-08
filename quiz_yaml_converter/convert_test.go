@@ -171,7 +171,7 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 	tests := []struct {
 		name         string
 		files        map[string]string
-		wantWarnings []ValidationError
+		wantWarnings []ValidationError // Source は mdDir からの相対パスで書く
 		wantContent  string
 	}{
 		{
@@ -182,7 +182,7 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 		{
 			name:         "empty answer in the second file",
 			files:        map[string]string{"a.md": validMD, "b.md": emptyAnswerMD},
-			wantWarnings: []ValidationError{{Item: 2, Field: "answer", Message: "答え (answer) が空です"}},
+			wantWarnings: []ValidationError{{Item: 2, Field: "answer", Message: "答え (answer) が空です", Source: "b.md"}},
 			wantContent:  "問題文B",
 		},
 	}
@@ -195,6 +195,7 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 				writeTestFile(t, mdDir, name, content)
 			}
 			output := filepath.Join(t.TempDir(), "quiz.yaml")
+			want := withSourceDir(tt.wantWarnings, mdDir)
 
 			// Act
 			warnings, err := ConvertMarkdownDirToYAMLWithWarnings(mdDir, output, false)
@@ -203,8 +204,8 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ConvertMarkdownDirToYAMLWithWarnings() error = %v", err)
 			}
-			if !reflect.DeepEqual(warnings, tt.wantWarnings) {
-				t.Errorf("warnings = %+v, want %+v", warnings, tt.wantWarnings)
+			if !reflect.DeepEqual(warnings, want) {
+				t.Errorf("warnings = %+v, want %+v", warnings, want)
 			}
 			got, err := os.ReadFile(output)
 			if err != nil {
@@ -215,4 +216,67 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestConvertMarkdownDirToYAMLWithWarningsError(t *testing.T) {
+	const brokenMD = "frontmatterなし\n"
+	const emptyAnswerMD = "---\ntitle: B\n---\n## Question\n\n問題文B\n\n## Answer\n\n"
+
+	tests := []struct {
+		name         string
+		files        map[string]string
+		wantWarnings []ValidationError // Source は mdDir からの相対パスで書く
+	}{
+		{
+			name:  "all files are broken",
+			files: map[string]string{"a.md": brokenMD},
+		},
+		{
+			name:         "warnings of parsed files are returned with the parse error",
+			files:        map[string]string{"a.md": brokenMD, "sub/b.md": emptyAnswerMD},
+			wantWarnings: []ValidationError{{Item: 1, Field: "answer", Message: "答え (answer) が空です", Source: filepath.Join("sub", "b.md")}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			mdDir := t.TempDir()
+			for name, content := range tt.files {
+				if err := os.MkdirAll(filepath.Join(mdDir, filepath.Dir(name)), 0o755); err != nil {
+					t.Fatalf("failed to create directory: %v", err)
+				}
+				writeTestFile(t, mdDir, name, content)
+			}
+			output := filepath.Join(t.TempDir(), "quiz.yaml")
+			want := withSourceDir(tt.wantWarnings, mdDir)
+
+			// Act
+			warnings, err := ConvertMarkdownDirToYAMLWithWarnings(mdDir, output, true)
+
+			// Assert
+			if err == nil {
+				t.Fatal("ConvertMarkdownDirToYAMLWithWarnings() error = nil, want error")
+			}
+			if !reflect.DeepEqual(warnings, want) {
+				t.Errorf("warnings = %+v, want %+v", warnings, want)
+			}
+			if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
+				t.Errorf("output file should not be written: stat error = %v", statErr)
+			}
+		})
+	}
+}
+
+// withSourceDir は warnings の各 Source の前に dir を付けたコピーを返す．
+func withSourceDir(warnings []ValidationError, dir string) []ValidationError {
+	if warnings == nil {
+		return nil
+	}
+	out := make([]ValidationError, len(warnings))
+	for i, w := range warnings {
+		w.Source = filepath.Join(dir, w.Source)
+		out[i] = w
+	}
+	return out
 }
