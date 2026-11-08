@@ -32,16 +32,6 @@ func TestDetectOutputFormat(t *testing.T) {
 	}
 }
 
-// テスト用のファイルを dir/name に作成し，そのパスを返す．
-func writeTestFile(t *testing.T, dir, name, content string) string {
-	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("failed to write %s: %v", name, err)
-	}
-	return path
-}
-
 // 警告の有無にかかわらず変換が行われ，警告が返されることを確認する．
 func TestConvertWithWarnings(t *testing.T) {
 	tests := []struct {
@@ -89,11 +79,11 @@ func TestConvertWithWarnings(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			input := writeTestFile(t, dir, "quiz.yaml", tt.content)
+			input := writeFile(t, dir, "quiz.yaml", tt.content)
 			output := filepath.Join(dir, tt.outputName)
 			tmpl := ""
 			if tt.withTemplate {
-				tmpl = writeTestFile(t, dir, "custom.tmpl", "{{range .Items}}[{{.Answer}}]{{end}}")
+				tmpl = writeFile(t, dir, "custom.tmpl", "{{range .Items}}[{{.Answer}}]{{end}}")
 			}
 
 			// Act
@@ -106,11 +96,8 @@ func TestConvertWithWarnings(t *testing.T) {
 			if !reflect.DeepEqual(warnings, tt.wantWarnings) {
 				t.Errorf("warnings = %+v, want %+v", warnings, tt.wantWarnings)
 			}
-			got, err := os.ReadFile(output)
-			if err != nil {
-				t.Fatalf("failed to read output: %v", err)
-			}
-			if !strings.Contains(string(got), tt.wantContent) {
+			got := readFile(t, output)
+			if !strings.Contains(got, tt.wantContent) {
 				t.Errorf("output = %q, want it to contain %q", got, tt.wantContent)
 			}
 		})
@@ -143,7 +130,7 @@ func TestConvertWithWarningsErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			input := writeTestFile(t, dir, "quiz.yaml", tt.content)
+			input := writeFile(t, dir, "quiz.yaml", tt.content)
 			output := filepath.Join(dir, tt.outputName)
 
 			// Act
@@ -192,7 +179,7 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 			// Arrange
 			mdDir := t.TempDir()
 			for name, content := range tt.files {
-				writeTestFile(t, mdDir, name, content)
+				writeFile(t, mdDir, name, content)
 			}
 			output := filepath.Join(t.TempDir(), "quiz.yaml")
 			want := withSourceDir(tt.wantWarnings, mdDir)
@@ -207,11 +194,8 @@ func TestConvertMarkdownDirToYAMLWithWarnings(t *testing.T) {
 			if !reflect.DeepEqual(warnings, want) {
 				t.Errorf("warnings = %+v, want %+v", warnings, want)
 			}
-			got, err := os.ReadFile(output)
-			if err != nil {
-				t.Fatalf("failed to read output: %v", err)
-			}
-			if !strings.Contains(string(got), tt.wantContent) {
+			got := readFile(t, output)
+			if !strings.Contains(got, tt.wantContent) {
 				t.Errorf("output = %q, want it to contain %q", got, tt.wantContent)
 			}
 		})
@@ -246,7 +230,7 @@ func TestConvertMarkdownDirToYAMLWithWarningsError(t *testing.T) {
 				if err := os.MkdirAll(filepath.Join(mdDir, filepath.Dir(name)), 0o755); err != nil {
 					t.Fatalf("failed to create directory: %v", err)
 				}
-				writeTestFile(t, mdDir, name, content)
+				writeFile(t, mdDir, name, content)
 			}
 			output := filepath.Join(t.TempDir(), "quiz.yaml")
 			want := withSourceDir(tt.wantWarnings, mdDir)

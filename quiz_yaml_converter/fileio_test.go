@@ -48,15 +48,6 @@ func fileMode(t *testing.T, path string) fs.FileMode {
 	return info.Mode().Perm()
 }
 
-func readFileString(t *testing.T, path string) string {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("failed to read %s: %v", path, err)
-	}
-	return string(b)
-}
-
 // 置き換え（os.Rename）を必ず失敗させる．テストの終了時に元に戻す．
 // パッケージ変数を書き換えるため，このヘルパーを使うテストでは t.Parallel を使わない．
 func failRename(t *testing.T) error {
@@ -92,7 +83,7 @@ func TestWriteFileAtomicCreatesNewFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("writeFileAtomic() error = %v", err)
 			}
-			if got := readFileString(t, path); got != content {
+			if got := readFile(t, path); got != content {
 				t.Errorf("content = %q, want %q", got, content)
 			}
 			if got := listDir(t, dir); !slices.Equal(got, []string{"out.txt"}) {
@@ -139,7 +130,7 @@ func TestWriteFileAtomicReplacesExistingFile(t *testing.T) {
 			if err != nil {
 				t.Fatalf("writeFileAtomic() error = %v", err)
 			}
-			if got := readFileString(t, path); got != content {
+			if got := readFile(t, path); got != content {
 				t.Errorf("content = %q, want %q", got, content)
 			}
 			if got := listDir(t, dir); !slices.Equal(got, []string{"out.txt"}) {
@@ -174,7 +165,7 @@ func TestWriteFileAtomicRenameFailureKeepsExistingFile(t *testing.T) {
 	if !errors.Is(err, errRename) {
 		t.Fatalf("writeFileAtomic() error = %v, want %v", err, errRename)
 	}
-	if got := readFileString(t, path); got != existing {
+	if got := readFile(t, path); got != existing {
 		t.Errorf("content = %q, want %q", got, existing)
 	}
 	if got := fileMode(t, path); got != wantMode {
@@ -276,7 +267,7 @@ func TestWriteFileAtomicSymlink(t *testing.T) {
 			if info.Mode()&fs.ModeSymlink == 0 {
 				t.Errorf("link was replaced by a regular file: mode = %v", info.Mode())
 			}
-			if got := readFileString(t, target); got != content {
+			if got := readFile(t, target); got != content {
 				t.Errorf("target content = %q, want %q", got, content)
 			}
 			if got := listDir(t, targetDir); !slices.Equal(got, []string{"out.txt"}) {
@@ -327,11 +318,8 @@ func TestWriteCallersKeepExistingFileOnFailure(t *testing.T) {
 			// Arrange
 			failRename(t)
 			dir := t.TempDir()
-			path := filepath.Join(dir, tt.file)
 			const existing = "既存の内容"
-			if err := os.WriteFile(path, []byte(existing), 0o644); err != nil {
-				t.Fatalf("failed to write existing file: %v", err)
-			}
+			path := writeFile(t, dir, tt.file, existing)
 
 			// Act
 			err := tt.write(path)
@@ -340,7 +328,7 @@ func TestWriteCallersKeepExistingFileOnFailure(t *testing.T) {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("error = %v, want it to contain %q", err, tt.wantErr)
 			}
-			if got := readFileString(t, path); got != existing {
+			if got := readFile(t, path); got != existing {
 				t.Errorf("content = %q, want %q", got, existing)
 			}
 			if got := listDir(t, dir); !slices.Equal(got, []string{tt.file}) {
@@ -394,9 +382,7 @@ func TestWriteFileAtomicRelativeSymlinkThroughSymlinkedDir(t *testing.T) {
 			}
 			target := filepath.Join(dir, "proj", "shared", "quiz.csv")
 			if tt.targetExists {
-				if err := os.WriteFile(target, []byte("古い内容"), 0o644); err != nil {
-					t.Fatalf("failed to write target: %v", err)
-				}
+				writeFile(t, filepath.Join(dir, "proj", "shared"), "quiz.csv", "古い内容")
 			}
 			if err := os.Symlink(filepath.Join("..", "shared", "quiz.csv"), filepath.Join(dir, "proj", "out", "quiz.csv")); err != nil {
 				t.Skipf("symlink is not available: %v", err)
@@ -414,7 +400,7 @@ func TestWriteFileAtomicRelativeSymlinkThroughSymlinkedDir(t *testing.T) {
 			if err != nil {
 				t.Fatalf("writeFileAtomic() error = %v", err)
 			}
-			if got := readFileString(t, target); got != content {
+			if got := readFile(t, target); got != content {
 				t.Errorf("target content = %q, want %q", got, content)
 			}
 			if got := listDir(t, dir); !slices.Equal(got, []string{"outlink", "proj"}) {
@@ -482,11 +468,8 @@ func TestWriteFileAtomicReadOnlyFile(t *testing.T) {
 	}
 	// Arrange
 	dir := t.TempDir()
-	path := filepath.Join(dir, "quiz.csv")
 	const original = "保護した内容"
-	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
+	path := writeFile(t, dir, "quiz.csv", original)
 	if err := os.Chmod(path, 0o444); err != nil {
 		t.Fatalf("failed to chmod: %v", err)
 	}
@@ -499,7 +482,7 @@ func TestWriteFileAtomicReadOnlyFile(t *testing.T) {
 	if !errors.Is(err, fs.ErrPermission) {
 		t.Fatalf("writeFileAtomic() error = %v, want permission error", err)
 	}
-	if got := readFileString(t, path); got != original {
+	if got := readFile(t, path); got != original {
 		t.Errorf("content = %q, want %q (unchanged)", got, original)
 	}
 	if got := listDir(t, dir); !slices.Equal(got, []string{"quiz.csv"}) {
@@ -520,10 +503,7 @@ func TestWriteFileAtomicReadOnlyDirectory(t *testing.T) {
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		t.Fatalf("failed to mkdir: %v", err)
 	}
-	path := filepath.Join(dir, "quiz.csv")
-	if err := os.WriteFile(path, []byte("古い内容"), 0o644); err != nil {
-		t.Fatalf("failed to write file: %v", err)
-	}
+	path := writeFile(t, dir, "quiz.csv", "古い内容")
 	if err := os.Chmod(dir, 0o555); err != nil {
 		t.Fatalf("failed to chmod: %v", err)
 	}
@@ -537,7 +517,7 @@ func TestWriteFileAtomicReadOnlyDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("writeFileAtomic() error = %v", err)
 	}
-	if got := readFileString(t, path); got != content {
+	if got := readFile(t, path); got != content {
 		t.Errorf("content = %q, want %q", got, content)
 	}
 	if got := listDir(t, dir); !slices.Equal(got, []string{"quiz.csv"}) {
@@ -565,7 +545,7 @@ func TestWriteFileAtomicLongFileName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("writeFileAtomic() error = %v", err)
 	}
-	if got := readFileString(t, path); got != content {
+	if got := readFile(t, path); got != content {
 		t.Errorf("content = %q, want %q", got, content)
 	}
 	if got := listDir(t, dir); !slices.Equal(got, []string{name}) {

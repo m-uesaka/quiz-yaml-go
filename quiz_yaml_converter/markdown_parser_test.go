@@ -14,15 +14,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func writeTempMarkdown(t *testing.T, dir, name, content string) string {
-	t.Helper()
-	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatalf("failed to write fixture: %v", err)
-	}
-	return p
-}
-
 func TestParseMarkdownFile_FullySpecified(t *testing.T) {
 	content := `---
 title: 自作問題-ハヤカワ・ポケット・ミステリ
@@ -58,7 +49,7 @@ Hayakawa Pocket Mystery
 ## Comment
 `
 	dir := t.TempDir()
-	path := writeTempMarkdown(t, dir, "test.md", content)
+	path := writeFile(t, dir, "test.md", content)
 
 	item, err := ParseMarkdownFile(path)
 	if err != nil {
@@ -111,7 +102,7 @@ Vessel
 ## Comment
 `
 	dir := t.TempDir()
-	path := writeTempMarkdown(t, dir, "vessel.md", content)
+	path := writeFile(t, dir, "vessel.md", content)
 
 	item, err := ParseMarkdownFile(path)
 	if err != nil {
@@ -165,7 +156,7 @@ Jebtsundamba Khutuktu
 ## Comment
 `
 	dir := t.TempDir()
-	path := writeTempMarkdown(t, dir, "test.md", content)
+	path := writeFile(t, dir, "test.md", content)
 
 	item, err := ParseMarkdownFile(path)
 	if err != nil {
@@ -209,7 +200,7 @@ Vessel
 別の段落のコメント．
 `
 	dir := t.TempDir()
-	path := writeTempMarkdown(t, dir, "test.md", content)
+	path := writeFile(t, dir, "test.md", content)
 
 	item, err := ParseMarkdownFile(path)
 	if err != nil {
@@ -260,7 +251,7 @@ date: 2026-01-01
 ## Comment
 `
 	dir := t.TempDir()
-	path := writeTempMarkdown(t, dir, "test.md", content)
+	path := writeFile(t, dir, "test.md", content)
 
 	item, err := ParseMarkdownFile(path)
 	if err != nil {
@@ -322,7 +313,7 @@ Answer
 別の段落
 `
 	dir := t.TempDir()
-	crlfPath := writeTempMarkdown(t, dir, "crlf.md", strings.ReplaceAll(lf, "\n", "\r\n"))
+	crlfPath := writeFile(t, dir, "crlf.md", strings.ReplaceAll(lf, "\n", "\r\n"))
 	want := QuizItem{
 		Question: "問題文1行目\n問題文2行目",
 		Answer:   "答え",
@@ -359,11 +350,11 @@ func TestParseMarkdownFile_UTF8BOM(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			want, err := ParseMarkdownFile(writeTempMarkdown(t, dir, "plain.md", markdownFixture("答え")))
+			want, err := ParseMarkdownFile(writeFile(t, dir, "plain.md", markdownFixture("答え")))
 			if err != nil {
 				t.Fatalf("failed to parse file without BOM: %v", err)
 			}
-			path := writeTempMarkdown(t, dir, "bom.md", tt.content)
+			path := writeFile(t, dir, "bom.md", tt.content)
 
 			// Act
 			got, err := ParseMarkdownFile(path)
@@ -384,7 +375,7 @@ func TestParseMarkdownFile_IgnoresUnusedFrontmatterKeys(t *testing.T) {
 	// Arrange
 	content := "---\ntitle: 自作問題-テスト\ndate: 2026-01-01\nauthor: 誰か\ntags:\n    - タグ1\n---\n" +
 		"## Question\n\n問題文\n\n## Answer\n\n答え\n"
-	path := writeTempMarkdown(t, t.TempDir(), "test.md", content)
+	path := writeFile(t, t.TempDir(), "test.md", content)
 
 	// Act
 	item, err := ParseMarkdownFile(path)
@@ -417,7 +408,7 @@ func TestCollectMarkdownFiles_ExtensionMatching(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
 			for _, name := range []string{"a.md", "B.MD", "c.Md", "d.txt", "e.markdown"} {
-				writeTempMarkdown(t, dir, name, "")
+				writeFile(t, dir, name, "")
 			}
 			if err := os.Mkdir(filepath.Join(dir, "x.md"), 0o755); err != nil {
 				t.Fatalf("failed to create directory: %v", err)
@@ -425,7 +416,7 @@ func TestCollectMarkdownFiles_ExtensionMatching(t *testing.T) {
 			// ディレクトリを指すシンボリックリンクは対象外，ファイルを指すシンボリックリンクは対象にする．
 			// リンク先はdirの外に置き，再帰する場合にリンク先が別に数えられないようにする．
 			target := t.TempDir()
-			targetFile := writeTempMarkdown(t, target, "target.md", "")
+			targetFile := writeFile(t, target, "target.md", "")
 			if err := os.Symlink(target, filepath.Join(dir, "link-to-dir.md")); err != nil {
 				t.Skipf("symlinks are not supported: %v", err)
 			}
@@ -456,9 +447,9 @@ func TestCollectMarkdownFiles_ExtensionMatching(t *testing.T) {
 
 func TestAggregateMarkdownDir_SortedAndAggregated(t *testing.T) {
 	dir := t.TempDir()
-	writeTempMarkdown(t, dir, "c.md", markdownFixture("C"))
-	writeTempMarkdown(t, dir, "a.md", markdownFixture("A"))
-	writeTempMarkdown(t, dir, "b.md", markdownFixture("B"))
+	writeFile(t, dir, "c.md", markdownFixture("C"))
+	writeFile(t, dir, "a.md", markdownFixture("A"))
+	writeFile(t, dir, "b.md", markdownFixture("B"))
 
 	items, err := AggregateMarkdownDir(dir, false)
 	if err != nil {
@@ -481,8 +472,8 @@ func TestAggregateMarkdownDir_Recursive(t *testing.T) {
 	if err := os.MkdirAll(sub, 0o755); err != nil {
 		t.Fatalf("failed to create subdirectory: %v", err)
 	}
-	writeTempMarkdown(t, dir, "top.md", markdownFixture("TOP"))
-	writeTempMarkdown(t, sub, "nested.md", markdownFixture("NESTED"))
+	writeFile(t, dir, "top.md", markdownFixture("TOP"))
+	writeFile(t, sub, "nested.md", markdownFixture("NESTED"))
 
 	nonRecursive, err := AggregateMarkdownDir(dir, false)
 	if err != nil {
@@ -508,12 +499,12 @@ func TestCollectMarkdownFiles_SymlinkRoot(t *testing.T) {
 		t.Run(fmt.Sprintf("recursive=%v", recursive), func(t *testing.T) {
 			// Arrange
 			target := t.TempDir()
-			writeTempMarkdown(t, target, "top.md", markdownFixture("TOP"))
+			writeFile(t, target, "top.md", markdownFixture("TOP"))
 			sub := filepath.Join(target, "sub")
 			if err := os.Mkdir(sub, 0o755); err != nil {
 				t.Fatalf("failed to create subdirectory: %v", err)
 			}
-			writeTempMarkdown(t, sub, "nested.md", markdownFixture("NESTED"))
+			writeFile(t, sub, "nested.md", markdownFixture("NESTED"))
 			link := filepath.Join(t.TempDir(), "link")
 			if err := os.Symlink(target, link); err != nil {
 				t.Skipf("symlinks are not supported: %v", err)
@@ -541,8 +532,8 @@ func TestCollectMarkdownFiles_SymlinkRoot(t *testing.T) {
 
 func TestAggregateMarkdownDir_PartialFailureReportsFileName(t *testing.T) {
 	dir := t.TempDir()
-	writeTempMarkdown(t, dir, "good.md", markdownFixture("OK"))
-	brokenPath := writeTempMarkdown(t, dir, "broken.md", "no frontmatter here")
+	writeFile(t, dir, "good.md", markdownFixture("OK"))
+	brokenPath := writeFile(t, dir, "broken.md", "no frontmatter here")
 
 	items, err := AggregateMarkdownDir(dir, false)
 	if err == nil {
@@ -561,10 +552,10 @@ func TestAggregateMarkdownDir_PartialFailureReportsFileName(t *testing.T) {
 func TestAggregateMarkdownDir_MultipleFailuresAreJoined(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
-	writeTempMarkdown(t, dir, "good.md", markdownFixture("OK"))
-	noFrontmatterPath := writeTempMarkdown(t, dir, "no_frontmatter.md", "no frontmatter here")
+	writeFile(t, dir, "good.md", markdownFixture("OK"))
+	noFrontmatterPath := writeFile(t, dir, "no_frontmatter.md", "no frontmatter here")
 	// tagsに文字列のリストではなくマッピングを指定し，yaml.v3の *yaml.TypeError を発生させる
-	badTagsPath := writeTempMarkdown(t, dir, "bad_tags.md", "---\ntags:\n    key: value\n---\n## Answer\n\n答え\n")
+	badTagsPath := writeFile(t, dir, "bad_tags.md", "---\ntags:\n    key: value\n---\n## Answer\n\n答え\n")
 
 	// Act
 	items, err := AggregateMarkdownDir(dir, false)
@@ -602,8 +593,8 @@ func TestAggregateMarkdownDir_IgnoresNonMarkdownFiles(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え"))
-			writeTempMarkdown(t, dir, "memo.txt", "Markdownではないファイル")
+			writeFile(t, dir, "quiz.md", markdownFixture("答え"))
+			writeFile(t, dir, "memo.txt", "Markdownではないファイル")
 
 			// Act
 			items, err := AggregateMarkdownDir(dir, tt.recursive)
@@ -640,14 +631,14 @@ func TestAggregateMarkdownDir_InvalidDirectory(t *testing.T) {
 		{
 			name: "ディレクトリではなくファイル",
 			path: func(t *testing.T, dir string) string {
-				return writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え"))
+				return writeFile(t, dir, "quiz.md", markdownFixture("答え"))
 			},
 			wantMsg: "Markdownディレクトリではありません",
 		},
 		{
 			name: "パスの途中がファイル",
 			path: func(t *testing.T, dir string) string {
-				return filepath.Join(writeTempMarkdown(t, dir, "quiz.md", markdownFixture("答え")), "sub")
+				return filepath.Join(writeFile(t, dir, "quiz.md", markdownFixture("答え")), "sub")
 			},
 			wantMsg: "Markdownディレクトリが見つかりません",
 		},
@@ -661,8 +652,8 @@ func TestAggregateMarkdownDir_InvalidDirectory(t *testing.T) {
 		{
 			name: "Markdownファイル以外のファイルのみを含むディレクトリ",
 			path: func(t *testing.T, dir string) string {
-				writeTempMarkdown(t, dir, "memo.txt", "")
-				writeTempMarkdown(t, dir, "quiz.markdown", markdownFixture("答え"))
+				writeFile(t, dir, "memo.txt", "")
+				writeFile(t, dir, "quiz.markdown", markdownFixture("答え"))
 				return dir
 			},
 			wantMsg: "Markdownファイル（拡張子が .md のファイル）が見つかりません",
@@ -764,11 +755,8 @@ func TestSaveYAMLData_CriteriaFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SaveYAMLData failed: %v", err)
 	}
-	got, err := os.ReadFile(yamlPath)
-	if err != nil {
-		t.Fatalf("failed to read output: %v", err)
-	}
-	if string(got) != expected {
+	got := readFile(t, yamlPath)
+	if got != expected {
 		t.Errorf("SaveYAMLData output =\n%s\nwant\n%s", got, expected)
 	}
 }

@@ -76,18 +76,12 @@ func TestConvertYAMLToCSV(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 一時ファイルを作成
-			yamlFile := filepath.Join(tempDir, "test_input.yaml")
+			// 出力先のパスと，入力のYAMLファイルを用意する
 			csvFile := filepath.Join(tempDir, "test_output.csv")
-
-			// YAMLファイルを作成
-			err := os.WriteFile(yamlFile, []byte(tt.yamlContent), 0644)
-			if err != nil {
-				t.Fatalf("Failed to create test YAML file: %v", err)
-			}
+			yamlFile := writeFile(t, tempDir, "test_input.yaml", tt.yamlContent)
 
 			// テスト対象関数を実行
-			err = ConvertYAMLToCSV(yamlFile, csvFile)
+			err := ConvertYAMLToCSV(yamlFile, csvFile)
 
 			if tt.shouldError {
 				if err == nil {
@@ -107,10 +101,7 @@ func TestConvertYAMLToCSV(t *testing.T) {
 
 			// CSVファイルの内容を読んで確認（詳細なテストは省略）
 			// 実際のプロダクションコードでは、csvファイルの内容も詳細に検証する
-			csvContent, err := os.ReadFile(csvFile)
-			if err != nil {
-				t.Fatalf("Failed to read CSV file: %v", err)
-			}
+			csvContent := readFile(t, csvFile)
 
 			if len(csvContent) == 0 {
 				t.Error("CSV file is empty")
@@ -314,7 +305,6 @@ func TestCSVFieldSafe(t *testing.T) {
 func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
 	// Arrange
 	tempDir := t.TempDir()
-	yamlFile := filepath.Join(tempDir, "quiz.yaml")
 	yamlContent := `- question: "カンマ, を含む問題"
   answer: "\"引用符\"を含む答え"
   spell: spell
@@ -332,9 +322,7 @@ func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
   answer: "-1"
   spell: "@SUM(A1)"
 `
-	if err := os.WriteFile(yamlFile, []byte(yamlContent), 0644); err != nil {
-		t.Fatalf("Failed to create YAML file: %v", err)
-	}
+	yamlFile := writeFile(t, tempDir, "quiz.yaml", yamlContent)
 	defaultCSV := filepath.Join(tempDir, "default.csv")
 	templateCSV := filepath.Join(tempDir, "template.csv")
 	templateFile := filepath.Join("..", "templates", "quiz_template.csv")
@@ -356,12 +344,9 @@ func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
 		"\"改行を\n含む問題\",答え2,,\n" +
 		`"'=HYPERLINK(""http://example.com"",""x"")",-1,'@SUM(A1),` + "\n"
 	for _, path := range []string{defaultCSV, templateCSV} {
-		got, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("Failed to read CSV: %v", err)
-		}
-		if string(got) != want {
-			t.Errorf("CSV output of %s = %q, want %q", filepath.Base(path), string(got), want)
+		got := readFile(t, path)
+		if got != want {
+			t.Errorf("CSV output of %s = %q, want %q", filepath.Base(path), got, want)
 		}
 	}
 }
@@ -369,7 +354,6 @@ func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
 func BenchmarkConvertYAMLToCSV(b *testing.B) {
 	// ベンチマーク用の一時ディレクトリを作成
 	tempDir := b.TempDir()
-	yamlFile := filepath.Join(tempDir, "bench_input.yaml")
 	csvFile := filepath.Join(tempDir, "bench_output.csv")
 
 	// テスト用YAMLファイルを作成
@@ -389,10 +373,7 @@ func BenchmarkConvertYAMLToCSV(b *testing.B) {
     repeat:
       - rep1`
 
-	err := os.WriteFile(yamlFile, []byte(yamlContent), 0644)
-	if err != nil {
-		b.Fatalf("Failed to create benchmark YAML file: %v", err)
-	}
+	yamlFile := writeFile(b, tempDir, "bench_input.yaml", yamlContent)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {

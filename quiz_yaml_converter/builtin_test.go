@@ -24,7 +24,7 @@ func TestConvertWithBuiltinTemplate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			input := writeTestFile(t, dir, "quiz.yaml", "- question: 問題1\n  answer: 答え1\n  criteria:\n    ok: [別解1]\n- question: <b>問題2</b>\n  answer: 答え2\n")
+			input := writeFile(t, dir, "quiz.yaml", "- question: 問題1\n  answer: 答え1\n  criteria:\n    ok: [別解1]\n- question: <b>問題2</b>\n  answer: 答え2\n")
 			output := filepath.Join(dir, tt.outputName)
 			t.Chdir(t.TempDir())
 
@@ -38,12 +38,9 @@ func TestConvertWithBuiltinTemplate(t *testing.T) {
 			if len(warnings) != 0 {
 				t.Errorf("warnings = %+v, want none", warnings)
 			}
-			got, err := os.ReadFile(output)
-			if err != nil {
-				t.Fatalf("failed to read output: %v", err)
-			}
+			got := readFile(t, output)
 			for _, w := range tt.want {
-				if !strings.Contains(string(got), w) {
+				if !strings.Contains(got, w) {
 					t.Errorf("output does not contain %q:\n%s", w, got)
 				}
 			}
@@ -90,7 +87,7 @@ func TestConvertWithBuiltinTemplateErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			input := writeTestFile(t, dir, "quiz.yaml", "- question: 問題\n  answer: 答え\n")
+			input := writeFile(t, dir, "quiz.yaml", "- question: 問題\n  answer: 答え\n")
 			output := tt.output(dir)
 
 			// Act
@@ -136,8 +133,8 @@ func TestConvertWriteError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
 			dir := t.TempDir()
-			input := writeTestFile(t, dir, "quiz.yaml", "- question: 問題\n  answer: 答え\n")
-			templateFile := writeTestFile(t, dir, "quiz.tmpl", "{{range .Items}}{{.Answer}}\n{{end}}")
+			input := writeFile(t, dir, "quiz.yaml", "- question: 問題\n  answer: 答え\n")
+			templateFile := writeFile(t, dir, "quiz.tmpl", "{{range .Items}}{{.Answer}}\n{{end}}")
 			output := filepath.Join(dir, "missing", tt.outputName)
 
 			// Act
@@ -191,7 +188,7 @@ func TestBuiltinTemplateSpecHTMLMode(t *testing.T) {
 func TestConvertWithBuiltinCSVToHTMLFileDoesNotEscape(t *testing.T) {
 	// Arrange
 	dir := t.TempDir()
-	input := writeTestFile(t, dir, "quiz.yaml", "- question: <b>問題</b>\n  answer: 答え\n")
+	input := writeFile(t, dir, "quiz.yaml", "- question: <b>問題</b>\n  answer: 答え\n")
 	output := filepath.Join(dir, "quiz.html")
 
 	// Act
@@ -201,11 +198,8 @@ func TestConvertWithBuiltinCSVToHTMLFileDoesNotEscape(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ConvertWithBuiltinTemplate() error = %v", err)
 	}
-	got, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatalf("failed to read output: %v", err)
-	}
-	if want := "<b>問題</b>,答え,,\n"; !strings.Contains(string(got), want) {
+	got := readFile(t, output)
+	if want := "<b>問題</b>,答え,,\n"; !strings.Contains(got, want) {
 		t.Errorf("output = %q, want it to contain %q", got, want)
 	}
 }
