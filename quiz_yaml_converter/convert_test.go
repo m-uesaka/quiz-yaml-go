@@ -280,3 +280,21 @@ func withSourceDir(warnings []ValidationError, dir string) []ValidationError {
 	}
 	return out
 }
+
+// 未対応のフォーマットを渡した場合に，別のフォーマットで書き出さずにエラーになることを確認する．
+func TestWriteOutputUnsupportedFormat(t *testing.T) {
+	// Arrange
+	output := filepath.Join(t.TempDir(), "quiz.json")
+	data := []QuizItem{{Question: "問題", Answer: "答え"}}
+
+	// Act
+	err := writeOutput(data, OutputFormat("json"), output, "")
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), `unsupported output format: "json"`) {
+		t.Fatalf("writeOutput() error = %v, want unsupported output format error", err)
+	}
+	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
+		t.Errorf("output file should not be written: stat error = %v", statErr)
+	}
+}

@@ -17,9 +17,12 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 		return nil, err
 	}
 
+	// メッセージの形式を -validate の出力とそろえるため，validateQuizItem と同じ criteriaKeyErrors を使う．
 	var errs []string
 	for i, item := range data {
-		errs = append(errs, item.Criteria.unknownKeyErrors(fmt.Sprintf("問題 %d: ", i+1))...)
+		for _, e := range criteriaKeyErrors(item, i+1) {
+			errs = append(errs, e.Error())
+		}
 	}
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("invalid criteria keys:\n%s", strings.Join(errs, "\n"))
