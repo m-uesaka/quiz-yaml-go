@@ -58,10 +58,11 @@
 - 先頭にUTF-8のBOMが付いたMarkdownファイル（Windowsのメモ帳などで保存したもの）が「frontmatterが見つかりません」で失敗する問題を修正（#19）
 - 組み込みのMarkdownテンプレート（`templates/quiz_template.md`）で，問題文・答え・コメント・判定基準に改行が含まれると，段落が途切れたり2行目以降が見出し・リストなどとして解釈されたりする問題を修正（#31）
   - 改行を `<br>` に置き換えて1行にまとめるテンプレート関数 `nl2br` を追加し，組み込みのMarkdownテンプレートで使うようにした
-- `-format csv` を指定しても，出力ファイルの拡張子が `.csv` でないと `template file is required for non-CSV output` で失敗する問題を修正（#29）
+- CLIで `-format csv` を指定しても，出力ファイルの拡張子が `.csv` でないと `template file is required for non-CSV output` で失敗する問題を修正（#29）
   - `-format` を指定した場合は，出力ファイルの拡張子に関係なく指定したフォーマットで出力する
   - `-format` と `-template` をどちらも省略した場合は従来どおり，拡張子が `.csv` のときだけCSVで出力し，それ以外の拡張子ではエラーになる．エラーメッセージは `-format` または `-template` の指定を促す内容に変わり，ヘルプも表示する
-  - Goのパッケージの `Convert` / `DetectOutputFormat` の動作は変わらない
+  - これに合わせて，`-format` のヘルプに表示していた既定値 `csv` をなくし，省略した場合の動作を説明するようにした．指定できる値に `md`（`markdown` と同じ）も表示する
+  - 修正したのはCLIのみ．Goのパッケージの `Convert` は従来どおり，テンプレートを指定しない場合は出力ファイルの拡張子で形式を判定する．拡張子に関係なくCSVを出力する場合は `ConvertWithBuiltinTemplate(yamlFilePath, outputFilePath, BuiltinCSV)` を使う
 
 ## [1.0.0] - 2026-11-04
 

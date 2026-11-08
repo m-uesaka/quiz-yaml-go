@@ -23,6 +23,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter" // Import the quiz YAML converter package
 )
@@ -60,7 +62,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 		markdownDir = fs.String("markdown-dir", "", "集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる）")
 		recursive   = fs.Bool("recursive", false, "-markdown-dir指定時，サブディレクトリも再帰的に辿るかどうか")
 		outputFile  = fs.String("output", "", "出力ファイルのパス（必須）")
-		format      = fs.String("format", "csv", "出力フォーマット（csv, html, markdown）")
+		format      = fs.String("format", "", "出力フォーマット（"+supportedFormats()+"）．省略した場合は，出力ファイルの拡張子が.csvのときだけcsv")
 		template    = fs.String("template", "", "テンプレートファイルのパス（formatに関係なく使用）")
 		validate    = fs.Bool("validate", false, "YAMLファイルのフォーマットをバリデーションのみ実行")
 		help        = fs.Bool("help", false, "ヘルプを表示")
@@ -172,15 +174,19 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	}
 
 	// フォーマットに基づいて変換処理を実行
-	f, ok := outputFormats[*format]
-	if !ok {
-		return usageError(fmt.Sprintf("サポートされていないフォーマットです: %s\nサポートされているフォーマット: csv, html, markdown", *format))
-	}
-	// -formatを省略した場合は既定のCSVで出力するが，出力ファイルの拡張子が.csvでないときは
-	// 意図しない形式で書き出さないようエラーにする（従来どおり）．-formatを明示した場合は拡張子に関係なく，
+	// -formatを省略した場合は，出力ファイルの拡張子が.csvのときだけCSVで出力する．それ以外の拡張子では，
+	// 意図しない形式で書き出さないようエラーにする（従来どおり）．-formatを指定した場合は拡張子に関係なく，
 	// 指定したフォーマットで出力する（#29）．
-	if !isFlagSet(fs, "format") && quiz_yaml_converter.DetectOutputFormat(*outputFile, "") != quiz_yaml_converter.FormatCSV {
-		return usageError(fmt.Sprintf("出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: %s\n-formatまたは-templateを指定してください", *outputFile))
+	name := *format
+	if name == "" {
+		if quiz_yaml_converter.DetectOutputFormat(*outputFile, "") != quiz_yaml_converter.FormatCSV {
+			return usageError(fmt.Sprintf("-formatを省略した場合は，出力ファイルの拡張子が.csvのときだけCSVで出力します: %s\n-formatまたは-templateを指定してください", *outputFile))
+		}
+		name = "csv"
+	}
+	f, ok := outputFormats[name]
+	if !ok {
+		return usageError(fmt.Sprintf("サポートされていないフォーマットです: %s\nサポートされているフォーマット: %s", name, supportedFormats()))
 	}
 	warnings, err := quiz_yaml_converter.ConvertWithBuiltinTemplateWithWarnings(*inputFile, *outputFile, f.builtin)
 	printWarnings(warnings)
@@ -191,14 +197,12 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	return 0
 }
 
-// isFlagSet はfsでnameのフラグがコマンドラインで明示的に指定されたかどうかを返す．
-// fs.Parseのあとに呼ぶ．
-func isFlagSet(fs *flag.FlagSet, name string) bool {
-	set := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == name {
-			set = true
-		}
-	})
-	return set
+// supportedFormats は -format で指定できる値を，outputFormats から作った「csv, html, markdown, md」の形式で返す．
+func supportedFormats() string {
+	names := make([]string, 0, len(outputFormats))
+	for name := range outputFormats {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return strings.Join(names, ", ")
 }

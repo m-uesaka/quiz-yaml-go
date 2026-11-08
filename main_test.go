@@ -27,7 +27,7 @@ const wantUsage = "使用法: quiz-yaml-converter [オプション]\n" +
 	"\n" +
 	"オプション:\n" +
 	"  -format string\n" +
-	"    \t出力フォーマット（csv, html, markdown） (default \"csv\")\n" +
+	"    \t出力フォーマット（csv, html, markdown, md）．省略した場合は，出力ファイルの拡張子が.csvのときだけcsv\n" +
 	"  -help\n" +
 	"    \tヘルプを表示\n" +
 	"  -input string\n" +
@@ -355,25 +355,7 @@ func TestRun_InvalidArguments(t *testing.T) {
 			name: "未知のフォーマット",
 			args: []string{"-input", exampleYAML, "-output", "out.xml", "-format", "xml"},
 			wantMsg: "❌ エラー: サポートされていないフォーマットです: xml\n" +
-				"サポートされているフォーマット: csv, html, markdown\n",
-		},
-		{
-			name: "-format未指定で出力ファイルの拡張子が.html",
-			args: []string{"-input", exampleYAML, "-output", "out.html"},
-			wantMsg: "❌ エラー: 出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: out.html\n" +
-				"-formatまたは-templateを指定してください\n",
-		},
-		{
-			name: "-format未指定で出力ファイルの拡張子が.txt",
-			args: []string{"-input", exampleYAML, "-output", "out.txt"},
-			wantMsg: "❌ エラー: 出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: out.txt\n" +
-				"-formatまたは-templateを指定してください\n",
-		},
-		{
-			name: "-format未指定で出力ファイルに拡張子がない",
-			args: []string{"-input", exampleYAML, "-output", "out"},
-			wantMsg: "❌ エラー: 出力ファイルの拡張子が.csvではないため，出力フォーマットを判定できません: out\n" +
-				"-formatまたは-templateを指定してください\n",
+				"サポートされているフォーマット: csv, html, markdown, md\n",
 		},
 	}
 
@@ -647,5 +629,45 @@ func TestRun_MarkdownDirToYAMLWarningsWithParseError(t *testing.T) {
 	}
 	if _, err := os.Stat(output); !os.IsNotExist(err) {
 		t.Errorf("output file should not be written: stat error = %v", err)
+	}
+}
+
+// -formatと-templateを省略し，出力ファイルの拡張子が.csvでない場合に，エラーとヘルプを表示し，
+// 出力ファイルを作らずに終了コード1で終了することを確認する．
+func TestRun_ImplicitFormatRequiresCSVExtension(t *testing.T) {
+	tests := []struct {
+		name       string
+		outputName string
+	}{
+		{name: "拡張子が.html", outputName: "out.html"},
+		{name: "拡張子が.txt", outputName: "out.txt"},
+		{name: "拡張子がない", outputName: "out"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			output := filepath.Join(t.TempDir(), tt.outputName)
+
+			// Act
+			code, stdout, stderr := runCLI("-input", exampleYAML, "-output", output)
+
+			// Assert
+			if code != 1 {
+				t.Errorf("exit code = %d, want 1", code)
+			}
+			if stdout != "" {
+				t.Errorf("stdout = %q, want empty", stdout)
+			}
+			want := "❌ エラー: -formatを省略した場合は，出力ファイルの拡張子が.csvのときだけCSVで出力します: " + output + "\n" +
+				"-formatまたは-templateを指定してください\n" +
+				"\n" + wantUsage
+			if stderr != want {
+				t.Errorf("stderr = %q, want %q", stderr, want)
+			}
+			if _, err := os.Stat(output); !os.IsNotExist(err) {
+				t.Errorf("output file should not be written: stat error = %v", err)
+			}
+		})
 	}
 }

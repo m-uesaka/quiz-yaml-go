@@ -148,14 +148,14 @@ quiz-yaml-go/
 | `-markdown-dir` | | - | 集約するMarkdownファイルが置かれたディレクトリのパス（指定時はMarkdown→YAML変換モードになる．`-input`とは同時指定不可） |
 | `-recursive` | | `false` | `-markdown-dir`指定時，サブディレクトリも再帰的に辿るかどうか |
 | `-output` | *1 | - | 出力ファイルのパス |
-| `-format` | | `csv` | 出力フォーマット（`csv`, `html`, `markdown`）*3 |
+| `-format` | | - | 出力フォーマット（`csv`, `html`, `markdown`, `md`）*3 |
 | `-template` | | - | テンプレートファイルのパス（指定時はformatより優先） |
 | `-validate` | | `false` | YAMLファイルのバリデーションのみ実行（出力は行わない） |
 | `-help` | | `false` | ヘルプメッセージを表示 |
 
 *1: `-validate`フラグ使用時は不要
 *2: `-markdown-dir`指定時は不要（むしろ同時指定はエラー）
-*3: `-format`を指定した場合は，出力ファイルの拡張子に関係なく指定したフォーマットで出力する（例: `-format csv -output quiz.txt` はCSVを出力する）．`-format`と`-template`をどちらも省略した場合は，出力ファイルの拡張子が`.csv`のときだけCSVで出力し，それ以外の拡張子ではエラーになる
+*3: `-format`を指定した場合は，出力ファイルの拡張子に関係なく指定したフォーマットで出力する（例: `-format csv -output quiz.txt` はCSVを出力する）．`-format`と`-template`をどちらも省略した場合は，出力ファイルの拡張子が`.csv`のときだけCSVで出力し，それ以外の拡張子ではエラーになる．`md` は `markdown` と同じ
 
 ### 使用例
 
