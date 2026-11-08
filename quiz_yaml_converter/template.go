@@ -115,17 +115,17 @@ func executeTemplateToFile(content string, htmlMode bool, data []QuizItem, outpu
 
 	// テンプレートの実行が途中で失敗した場合（html/templateのエスケープエラーを含む）に
 	// 既存の出力ファイルを壊さないよう，一度メモリ上に出力し，実行に成功した場合のみファイルに書き込む．
-	// os.WriteFile は書き込みとクローズのどちらのエラーも返すため，書き込みの失敗も呼び出し元に伝わる．
-	// ただし os.WriteFile は既存のファイルを空にしてから書き込むため，書き込みの途中で失敗した場合は
-	// 既存の出力ファイルは残らず，途中まで書き込まれたファイルになる．
-	// 権限は os.Create と同じく 0666 から umask を引いたもの（新しくファイルを作る場合のみ）．
+	// 書き込みは writeFileAtomic で，一時ファイルに書き込んでから置き換えるため，書き込みの途中で失敗した場合も
+	// 既存の出力ファイルは壊れない．書き込み・クローズ・置き換えのエラーは呼び出し元に返す．
+	// 新しくファイルを作る場合の権限は os.Create と同じく 0666 から umask を引いたもの．
+	// 既存のファイルを置き換える場合は，元のファイルの権限を引き継ぐ．
 	var buf bytes.Buffer
 	templateData := TemplateData{Items: data}
 	if err := tmpl.Execute(&buf, templateData); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
 	}
 
-	if err := os.WriteFile(outputFilePath, buf.Bytes(), 0o666); err != nil {
+	if err := writeFileAtomic(outputFilePath, buf.Bytes(), 0o666); err != nil {
 		return fmt.Errorf("failed to write output file: %w", err)
 	}
 

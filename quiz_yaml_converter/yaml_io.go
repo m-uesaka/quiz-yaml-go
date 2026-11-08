@@ -49,12 +49,14 @@ func decodeYAMLFile(yamlFilePath string) ([]QuizItem, error) {
 }
 
 // QuizItemのスライスをYAMLファイルとして書き出す．
+// 一時ファイルに書き込んでから置き換えるため，書き込みの途中で失敗した場合も既存のファイルは壊れない．
+// 新しくファイルを作る場合の権限は 0644 から umask を引いたもの．既存のファイルを置き換える場合は，元のファイルの権限を引き継ぐ．
 func SaveYAMLData(items []QuizItem, yamlFilePath string) error {
 	out, err := yaml.Marshal(items)
 	if err != nil {
 		return fmt.Errorf("failed to marshal YAML: %w", err)
 	}
-	if err := os.WriteFile(yamlFilePath, out, 0o644); err != nil {
+	if err := writeFileAtomic(yamlFilePath, out, 0o644); err != nil {
 		return fmt.Errorf("failed to write YAML file: %w", err)
 	}
 	return nil
