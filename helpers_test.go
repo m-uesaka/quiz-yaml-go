@@ -18,7 +18,7 @@ func runCLI(args ...string) (code int, stdout, stderr string) {
 }
 
 // テスト用のファイルを dir/name に権限0o644で作成し，そのパスを返す．
-// quiz_yaml_converter パッケージのテストの writeFile と同じ（テストのヘルパーはパッケージをまたいで使えないため，両方に置いている）．
+// quizconv パッケージのテストの writeFile と同じ（テストのヘルパーはパッケージをまたいで使えないため，両方に置いている）．
 func writeFile(t testing.TB, dir, name, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -29,7 +29,7 @@ func writeFile(t testing.TB, dir, name, content string) string {
 }
 
 // path のファイルの内容を文字列で返す．
-// quiz_yaml_converter パッケージのテストの readFile と同じ．
+// quizconv パッケージのテストの readFile と同じ．
 func readFile(t testing.TB, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)

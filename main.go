@@ -26,24 +26,24 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter" // Import the quiz YAML converter package
+	"github.com/m-uesaka/quiz-yaml-go/v2/quizconv"
 )
 
 // outputFormat は -format で指定できる出力フォーマット1つ分の設定を表す
 type outputFormat struct {
 	// builtin はバイナリに埋め込んだ組み込みテンプレートの種類．
 	// 出力ファイルの拡張子に関係なく，このテンプレートで出力する（#29）．
-	builtin quiz_yaml_converter.BuiltinTemplate
+	builtin quizconv.BuiltinTemplate
 	// label は完了メッセージに表示するフォーマット名
 	label string
 }
 
 // outputFormats は -format の値と出力フォーマットの対応表
 var outputFormats = map[string]outputFormat{
-	"csv":      {builtin: quiz_yaml_converter.BuiltinCSV, label: "CSV"},
-	"html":     {builtin: quiz_yaml_converter.BuiltinHTML, label: "HTML"},
-	"markdown": {builtin: quiz_yaml_converter.BuiltinMarkdown, label: "Markdown"},
-	"md":       {builtin: quiz_yaml_converter.BuiltinMarkdown, label: "Markdown"},
+	"csv":      {builtin: quizconv.BuiltinCSV, label: "CSV"},
+	"html":     {builtin: quizconv.BuiltinHTML, label: "HTML"},
+	"markdown": {builtin: quizconv.BuiltinMarkdown, label: "Markdown"},
+	"md":       {builtin: quizconv.BuiltinMarkdown, label: "Markdown"},
 }
 
 func main() {
@@ -99,7 +99,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 
 	// printWarnings は変換時に見つかったバリデーションの警告を1件ずつ表示する．
 	// 警告があっても処理は続行し，終了コードには影響しない．
-	printWarnings := func(warnings []quiz_yaml_converter.ValidationError) {
+	printWarnings := func(warnings []quizconv.ValidationError) {
 		for _, w := range warnings {
 			fmt.Fprintf(stderr, "⚠️ 警告: %s\n", w)
 		}
@@ -127,7 +127,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 		if *outputFile == "" {
 			return usageError("出力ファイルが指定されていません")
 		}
-		warnings, err := quiz_yaml_converter.ConvertMarkdownDirToYAMLWithWarnings(*markdownDir, *outputFile, *recursive)
+		warnings, err := quizconv.ConvertMarkdownDirToYAMLWithWarnings(*markdownDir, *outputFile, *recursive)
 		printWarnings(warnings)
 		if err != nil {
 			return failure(err)
@@ -144,7 +144,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	// バリデーションのみの場合
 	if *validate {
 		fmt.Fprintf(stdout, "🔍 YAMLファイルをバリデーションしています: %s\n", *inputFile)
-		result := quiz_yaml_converter.ValidateYAMLFile(*inputFile)
+		result := quizconv.ValidateYAMLFile(*inputFile)
 
 		if !result.IsValid {
 			fmt.Fprintf(stdout, "❌ バリデーション失敗: %d個のエラーが見つかりました\n", len(result.Errors))
@@ -164,7 +164,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 
 	// テンプレートファイルが指定されている場合はテンプレート変換を実行
 	if *template != "" {
-		warnings, err := quiz_yaml_converter.ConvertWithWarnings(*inputFile, *outputFile, *template)
+		warnings, err := quizconv.ConvertWithWarnings(*inputFile, *outputFile, *template)
 		printWarnings(warnings)
 		if err != nil {
 			return failure(err)
@@ -179,7 +179,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	// 指定したフォーマットで出力する（#29）．
 	name := *format
 	if name == "" {
-		if quiz_yaml_converter.DetectOutputFormat(*outputFile, "") != quiz_yaml_converter.FormatCSV {
+		if quizconv.DetectOutputFormat(*outputFile, "") != quizconv.FormatCSV {
 			return usageError(fmt.Sprintf("-formatを省略した場合は，出力ファイルの拡張子が.csvのときだけCSVで出力します: %s\n-formatまたは-templateを指定してください", *outputFile))
 		}
 		name = "csv"
@@ -188,7 +188,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 	if !ok {
 		return usageError(fmt.Sprintf("サポートされていないフォーマットです: %s\nサポートされているフォーマット: %s", name, supportedFormats()))
 	}
-	warnings, err := quiz_yaml_converter.ConvertWithBuiltinTemplateWithWarnings(*inputFile, *outputFile, f.builtin)
+	warnings, err := quizconv.ConvertWithBuiltinTemplateWithWarnings(*inputFile, *outputFile, f.builtin)
 	printWarnings(warnings)
 	if err != nil {
 		return failure(err)

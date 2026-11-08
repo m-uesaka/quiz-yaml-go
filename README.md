@@ -31,6 +31,16 @@ go run main.go -markdown-dir path/to/quiz -output quiz.yaml
 go run main.go -markdown-dir path/to/quiz -recursive -output quiz.yaml
 ```
 
+### go install でインストールする方法
+
+```bash
+# v2.0.0 以降はモジュールのパスに /v2 が付く
+go install github.com/m-uesaka/quiz-yaml-go/v2@latest
+
+# インストールしたバイナリ（$(go env GOPATH)/bin/quiz-yaml-go）を使用
+quiz-yaml-go -input quiz.yaml -output quiz.csv
+```
+
 ### ビルドして使う方法
 
 ```bash
@@ -49,7 +59,7 @@ go build -o quiz-yaml-converter
 go test ./...
 
 # 特定のパッケージのテストを実行
-go test ./quiz_yaml_converter
+go test ./quizconv
 
 # カバレッジ付きでテストを実行
 go test -cover ./...
@@ -117,7 +127,7 @@ quiz-yaml-go/
 ├── CHANGELOG.md               # 変更履歴とバージョン間の移行方法
 ├── Taskfile.yml               # タスクランナー（Task）の設定
 ├── .gitignore                 # Git除外設定
-├── quiz_yaml_converter/       # クイズ変換ライブラリパッケージ
+├── quizconv/                  # クイズ変換ライブラリパッケージ（import "github.com/m-uesaka/quiz-yaml-go/v2/quizconv"）
 │   ├── doc.go                 # パッケージの説明
 │   ├── model.go               # データモデル（QuizItem, TemplateData, OutputFormat）
 │   ├── criteria.go            # 判定基準（Criteria）の読み込みとフォーマット
@@ -126,6 +136,7 @@ quiz-yaml-go/
 │   ├── builtin.go             # 組み込みテンプレートを使った変換
 │   ├── validate.go            # YAMLファイルのバリデーション
 │   ├── yaml_io.go             # YAMLファイルの読み書き
+│   ├── fileio.go              # 出力ファイルの書き込み（一時ファイルに書き込んでから置き換える）
 │   ├── convert.go             # 出力形式の判定と変換のエントリーポイント（Markdown→YAML変換を含む）
 │   ├── markdown_parser.go     # Markdown→QuizItem変換ロジック
 │   ├── *_test.go              # 各ファイルに対応するテストファイル

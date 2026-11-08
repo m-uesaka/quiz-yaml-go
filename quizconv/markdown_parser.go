@@ -1,7 +1,7 @@
 // 1問1ファイルのMarkdownクイズをQuizItemに変換するためのパーサーです．
 // frontmatter分離＋行ベースの単純なステートマシンで実装しており，
 // 外部のMarkdownパーサーライブラリには依存しません．
-package quiz_yaml_converter
+package quizconv
 
 import (
 	"errors"

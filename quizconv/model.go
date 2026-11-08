@@ -1,4 +1,4 @@
-package quiz_yaml_converter
+package quizconv
 
 // 1問ごとのエントリを表す構造体
 // 問題文、答え、原語表記、コメント、および判定基準を含む。
