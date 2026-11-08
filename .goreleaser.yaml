@@ -8,6 +8,10 @@
 
 version: 2
 
+# モジュールのパスが github.com/m-uesaka/quiz-yaml-go/v2 のため，既定ではプロジェクト名（アーカイブやバイナリの名前）が
+# 意図しないものになるおそれがある．v1.x と同じ名前になるよう明示する．
+project_name: quiz-yaml-go
+
 before:
   hooks:
     # You may remove this if you don't use go modules.

@@ -1,4 +1,4 @@
-module github.com/m-uesaka/quiz-yaml-go
+module github.com/m-uesaka/quiz-yaml-go/v2
 
 go 1.24.5
 

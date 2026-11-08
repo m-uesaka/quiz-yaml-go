@@ -11,6 +11,17 @@
 
 ## [Unreleased]
 
+Goのパッケージ名とimportパスを変更したため，次のリリースは v2.0.0 になります．
+Goのパッケージとして利用している場合は，[v1.x から v2.0.0 への移行](#v1x-から-v200-への移行) を確認してください．CLIの使い方は変わりません．
+
+### 破壊的変更
+
+- Goのパッケージ名を，Goの命名規則に沿って `quiz_yaml_converter` から `quizconv` に変更した（#15）
+  - ディレクトリも `quiz_yaml_converter/` から `quizconv/` に変更した
+- メジャーバージョンを上げるため，Goのモジュールのパスを `github.com/m-uesaka/quiz-yaml-go` から `github.com/m-uesaka/quiz-yaml-go/v2` に変更した（#15）
+  - importパスは `github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter` から `github.com/m-uesaka/quiz-yaml-go/v2/quizconv` に，`github.com/m-uesaka/quiz-yaml-go/templates` から `github.com/m-uesaka/quiz-yaml-go/v2/templates` に変わる
+  - `go install` でCLIをインストールする場合は `go install github.com/m-uesaka/quiz-yaml-go/v2@latest` を使う
+
 ### 追加
 
 - 通常の変換と `-markdown-dir` での集約でもバリデーションを行い，問題があれば標準エラー出力に警告を表示するようにした（#18）
@@ -151,6 +162,52 @@ v0.x から更新する場合は，[v0.x から v1.0.0 への移行](#v0x-から
 - YAMLの問題データをCSVに変換する機能
 - Goのテンプレートを使って HTML / Markdown などに変換する機能と，組み込みテンプレート
 - YAMLファイルのバリデーション（`-validate`）
+
+---
+
+## v1.x から v2.0.0 への移行
+
+YAMLファイルの形式，テンプレートの書き方，CLIの引数は変わりません．Goのパッケージとして利用している場合に，importパスとパッケージ名の変更が必要です．
+
+### 1. importパスとパッケージ名
+
+| v1.x | v2.0.0 |
+|------|--------|
+| `import "github.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter"` | `import "github.com/m-uesaka/quiz-yaml-go/v2/quizconv"` |
+| `import "github.com/m-uesaka/quiz-yaml-go/templates"` | `import "github.com/m-uesaka/quiz-yaml-go/v2/templates"` |
+| `quiz_yaml_converter.Convert(...)` など | `quizconv.Convert(...)` など |
+
+関数・型の名前と使い方は変わりません．パッケージを参照している箇所は，次のように置き換えられます．
+
+```bash
+go get github.com/m-uesaka/quiz-yaml-go/v2@latest
+# importパスとパッケージ名を置き換える（perl を使うため，macOS・Linux のどちらでもそのまま実行できる）
+grep -rlE 'quiz_yaml_converter|m-uesaka/quiz-yaml-go/' --include='*.go' . | xargs perl -pi \
+  -e 's#github\.com/m-uesaka/quiz-yaml-go/quiz_yaml_converter#github.com/m-uesaka/quiz-yaml-go/v2/quizconv#g;' \
+  -e 's#github\.com/m-uesaka/quiz-yaml-go/templates#github.com/m-uesaka/quiz-yaml-go/v2/templates#g;' \
+  -e 's#\bquiz_yaml_converter\.#quizconv.#g;'
+go mod tidy
+```
+
+import に別名を付けて `quiz_yaml_converter "github.com/m-uesaka/quiz-yaml-go/v2/quizconv"` とすれば，呼び出し側のコードを変えずに移行することもできます．
+
+### 2. CLIのインストール
+
+`go install` でインストールしている場合は，パスに `/v2` を付けます．
+
+```bash
+go install github.com/m-uesaka/quiz-yaml-go/v2@latest
+```
+
+[Releases](https://github.com/m-uesaka/quiz-yaml-go/releases) で配布しているバイナリの名前は変わりません．
+
+### 3. 次のリリースに含まれるそのほかの変更
+
+パッケージ名の変更のほかに，次の変更も v2.0.0 に含まれます．詳しくは上の [Unreleased] の各項目を参照してください．
+
+- 組み込みのCSV出力で，`=` / `+` / `-` / `@` などで始まる値の先頭に `'` が付く（CSV injection対策．#12）
+- `-format` を省略して `.csv` 以外の拡張子に出力するとエラーになる（従来どおり）が，`-format csv` を指定すれば拡張子に関係なくCSVを出力する（#29）
+- Goのパッケージが返すエラーメッセージが日本語になった（#20）
 
 ---
 

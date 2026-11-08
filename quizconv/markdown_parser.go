@@ -1,7 +1,10 @@
 // 1問1ファイルのMarkdownクイズをQuizItemに変換するためのパーサーです．
 // frontmatter分離＋行ベースの単純なステートマシンで実装しており，
 // 外部のMarkdownパーサーライブラリには依存しません．
-package quiz_yaml_converter
+//
+// （パッケージの説明は doc.go に書くため，このコメントは package 句から離している．）
+
+package quizconv
 
 import (
 	"errors"

@@ -1,4 +1,4 @@
-package quiz_yaml_converter
+package quizconv
 
 import (
 	"bytes"
@@ -13,7 +13,7 @@ import (
 
 // -update を指定すると，組み込みテンプレートのスナップショット（testdata/*.golden）を現在の出力で更新する．
 //
-//	go test ./quiz_yaml_converter -run TestBuiltinTemplateSnapshot -update
+//	go test ./quizconv -run TestBuiltinTemplateSnapshot -update
 //
 // -update はこのパッケージのテストにだけ定義されているため，パッケージを指定して実行する．
 // `go test ./... -update` とすると，-update を定義していないほかのパッケージのテストが
@@ -184,7 +184,7 @@ func TestQuoteAllInvalidArguments(t *testing.T) {
 		wantErr  string
 	}{
 		{name: "string instead of list", template: `{{range .Items}}{{quoteAll .Answer ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got string"},
-		{name: "criteria instead of list", template: `{{range .Items}}{{quoteAll .Criteria ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got *quiz_yaml_converter.Criteria"},
+		{name: "criteria instead of list", template: `{{range .Items}}{{quoteAll .Criteria ""}}{{end}}`, wantErr: "wrong type for value; expected []string; got *quizconv.Criteria"},
 		{name: "missing suffix", template: `{{range .Items}}{{quoteAll .OK}}{{end}}`, wantErr: "wrong number of args for quoteAll: want 2 got 1"},
 		{name: "non-string suffix", template: `{{range .Items}}{{quoteAll .OK 1}}{{end}}`, wantErr: "expected string; found 1"},
 		{name: "too many arguments", template: `{{range .Items}}{{quoteAll .OK "" ""}}{{end}}`, wantErr: "wrong number of args for quoteAll: want 2 got 3"},

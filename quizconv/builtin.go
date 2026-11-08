@@ -1,10 +1,10 @@
-package quiz_yaml_converter
+package quizconv
 
 import (
 	"fmt"
 	"io/fs"
 
-	"github.com/m-uesaka/quiz-yaml-go/templates"
+	"github.com/m-uesaka/quiz-yaml-go/v2/templates"
 )
 
 // BuiltinTemplate は組み込みテンプレートの種類を表す．

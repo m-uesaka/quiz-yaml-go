@@ -1,5 +1,5 @@
 # 組み込みテンプレートのスナップショットテスト（template_test.go）用のフィクスチャ．
-# このファイルを変更した場合は `go test ./quiz_yaml_converter -run TestBuiltinTemplateSnapshot -update` で
+# このファイルを変更した場合は `go test ./quizconv -run TestBuiltinTemplateSnapshot -update` で
 # testdata/*.golden を更新する．
 - question: すべての項目を持つ問題
   answer: 答え1
