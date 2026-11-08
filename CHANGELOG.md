@@ -11,7 +11,9 @@
 
 ## [Unreleased]
 
-Goのパッケージ名とimportパスを変更したため，次のリリースは v2.0.0 になります．
+## [2.0.0] - 2026-11-08
+
+Goのパッケージ名とimportパスを変更しました．
 Goのパッケージとして利用している場合は，[v1.x から v2.0.0 への移行](#v1x-から-v200-への移行) を確認してください．CLIの使い方は変わりません．
 
 ### 破壊的変更
@@ -201,9 +203,9 @@ go install github.com/m-uesaka/quiz-yaml-go/v2@latest
 
 [Releases](https://github.com/m-uesaka/quiz-yaml-go/releases) で配布しているバイナリの名前は変わりません．
 
-### 3. 次のリリースに含まれるそのほかの変更
+### 3. v2.0.0 に含まれるそのほかの変更
 
-パッケージ名の変更のほかに，次の変更も v2.0.0 に含まれます．詳しくは上の [Unreleased] の各項目を参照してください．
+パッケージ名の変更のほかに，次の変更も v2.0.0 に含まれます．詳しくは上の [2.0.0] の各項目を参照してください．
 
 - 組み込みのCSV出力で，`=` / `+` / `-` / `@` などで始まる値の先頭に `'` が付く（CSV injection対策．#12）
 - `-format` を省略して `.csv` 以外の拡張子に出力するとエラーになる（従来どおり）が，`-format csv` を指定すれば拡張子に関係なくCSVを出力する（#29）
@@ -267,7 +269,8 @@ criteria に `ok` / `ng` / `repeat` 以外のキー（`OK` のような大文字
 
 詳しくは [テンプレートの作成方法](templates/TEMPLATE_GUIDE.md) と [YAMLファイルの作成方法](yaml/YAML_GUIDE.md) を参照してください．
 
-[Unreleased]: https://github.com/m-uesaka/quiz-yaml-go/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/m-uesaka/quiz-yaml-go/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/m-uesaka/quiz-yaml-go/compare/v1.0.0...v2.0.0
 [1.0.0]: https://github.com/m-uesaka/quiz-yaml-go/compare/v0.1.0...v1.0.0
 [0.1.0]: https://github.com/m-uesaka/quiz-yaml-go/compare/v0.0.1...v0.1.0
 [0.0.1]: https://github.com/m-uesaka/quiz-yaml-go/releases/tag/v0.0.1
