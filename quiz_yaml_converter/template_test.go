@@ -240,7 +240,7 @@ func TestAccessorsWorkWithTemplateFuncs(t *testing.T) {
 		{name: "upper on each item", criteria: criteria, template: `{{range .NG}}{{upper .}}{{end}}`, expected: "NG1"},
 		{name: "csvRow with joined list", criteria: criteria, template: `{{csvRow .Question (join .OK ",")}}`, expected: `q,"ok1,ok2,ok3"`},
 		{name: "csvRow keeps formula as is", criteria: criteria, template: `{{csvRow (printf "=%s" .Question) "-1"}}`, expected: `=q,-1`},
-		{name: "csvRowSafe escapes formula", criteria: criteria, template: `{{csvRowSafe (printf "=%s" .Question) "-1" .Answer}}`, expected: `'=q,'-1,a`},
+		{name: "csvRowSafe escapes formula", criteria: criteria, template: `{{csvRowSafe (printf "=%s" .Question) "-1" "-A1" .Answer}}`, expected: `'=q,-1,'-A1,a`},
 		{name: "csvFieldSafe escapes formula", criteria: criteria, template: `{{csvFieldSafe (printf "@%s,x" .Question)}}`, expected: `"'@q,x"`},
 		{name: "printf", criteria: criteria, template: `{{printf "%q" .NG}}`, expected: `["ng1"]`},
 		{name: "criteria fields", criteria: criteria, template: `{{join .Criteria.OK ","}}/{{len .Criteria.NG}}/{{len .Criteria.Repeat}}`, expected: "ok1,ok2,ok3/1/0"},

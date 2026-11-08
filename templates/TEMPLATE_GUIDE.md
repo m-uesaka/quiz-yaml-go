@@ -200,12 +200,21 @@ type Criteria struct {
 
 CSVもテンプレートで列の構成や順序を変えられます．値にカンマ・ダブルクォート・改行が含まれていても壊れないよう，`csvRowSafe`（または`csvFieldSafe`）を使って出力してください．
 
-`csvRowSafe` / `csvFieldSafe` は，`=HYPERLINK(...)` や `@SUM(...)` のような値をExcelやGoogle スプレッドシートで開いたときに数式として実行されないよう（CSV injection対策），`=` / `+` / `-` / `@` / タブ / CR で始まる値の先頭に `'` を付けます（先頭の半角スペースは無視して判定します）．`-1` のように `-` で始まる値も `'-1` になります．表計算ソフト以外のプログラムで読み込むなど，値をそのまま出力したい場合は，`'` を付けない `csvRow` / `csvField` を使ってください．
+`csvRowSafe` / `csvFieldSafe` は，`=HYPERLINK(...)` や `@SUM(...)` のような値をExcelやGoogle スプレッドシートで開いたときに数式として実行されないよう（CSV injection対策），次のように出力します．
+
+- `=` / `+` / `-` / `@` / タブ / CR で始まる値の先頭に `'` を付けます（例: `=1+2` → `'=1+2`，`- 項目` → `'- 項目`）．先頭の空白（全角スペースなどを含む）は無視して判定します
+- `-1` / `+5` / `-1.5` のように数値だけからなる値は，数式として実行されないため，そのまま出力します
+- `;` を含む値は，ダブルクォートで囲みます（`;` を区切り文字とする地域の表計算ソフトで，`a;=1+2` が別のセルに分かれて実行されないようにするため）
+- 全角の `＝` などで始まる値は対象外です
+
+表計算ソフト以外のプログラムで読み込むなど，値をそのまま出力したい場合は，`'` を付けない `csvRow` / `csvField` を使えます．ただし，他人が作ったYAMLを変換して表計算ソフトで開くと数式が実行されるおそれがあるため，信頼できるデータにだけ使ってください．ヘッダー行のような固定の文字列には `csvRow` を使って構いません．
+
+`-template` で指定する自作のCSVテンプレートでは，この対策は `csvRowSafe` / `csvFieldSafe` を使った箇所にだけ効きます．以前のガイドの例のように `csvRow` を使っている場合は，`csvRowSafe` に置き換えてください．
 
 `templates/quiz_template.csv` は，テンプレートを使わない場合のCSV出力に使われる組み込みテンプレートです（バイナリに埋め込まれているため，このファイルを編集しても再ビルドするまで `-format csv` の出力は変わりません）．列構成を変えたい場合は，このファイルをコピーして編集し，`-template` で指定してください．
 
 ```text
-{{csvRowSafe "question" "answer" "spell" "criteria"}}
+{{csvRow "question" "answer" "spell" "criteria"}}
 {{range .Items}}{{csvRowSafe .Question .Answer .Spell (formatCriteria .Criteria)}}
 {{end -}}
 ```
@@ -213,7 +222,7 @@ CSVもテンプレートで列の構成や順序を変えられます．値に�
 列を変えたい場合の例（番号・答え・別解・タグ）:
 
 ```text
-{{csvRowSafe "no" "answer" "ok" "tags"}}
+{{csvRow "no" "answer" "ok" "tags"}}
 {{range $i, $item := .Items}}{{csvRowSafe (printf "%d" (add $i 1)) .Answer (quoteAll .OK "") (join .Tags " ")}}
 {{end -}}
 ```

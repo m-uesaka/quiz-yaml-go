@@ -1,3 +1,3 @@
-{{csvRowSafe "question" "answer" "spell" "criteria"}}
+{{csvRow "question" "answer" "spell" "criteria"}}
 {{range .Items}}{{csvRowSafe .Question .Answer .Spell (formatCriteria .Criteria)}}
 {{end -}}
