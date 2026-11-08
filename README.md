@@ -34,11 +34,11 @@ go run main.go -markdown-dir path/to/quiz -recursive -output quiz.yaml
 ### go install でインストールする方法
 
 ```bash
-# v2.0.0 のリリース後は，モジュールのパスに /v2 を付ける
+# v2.0.0 以降は，モジュールのパスに /v2 を付ける
 go install github.com/m-uesaka/quiz-yaml-go/v2@latest
 
-# v2.0.0 のリリース前（v1.x）は，/v2 を付けない
-go install github.com/m-uesaka/quiz-yaml-go@latest
+# v1.x を使う場合は，/v2 を付けずにバージョンを指定する
+go install github.com/m-uesaka/quiz-yaml-go@v1.0.0
 
 # インストールしたバイナリ（$(go env GOPATH)/bin/quiz-yaml-go）を使用
 quiz-yaml-go -input quiz.yaml -output quiz.csv
