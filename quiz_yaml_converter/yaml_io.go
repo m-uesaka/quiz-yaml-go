@@ -17,13 +17,11 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 		return nil, err
 	}
 
-	// メッセージの形式を -validate の出力とそろえるため，validateQuizItem の結果から取り出す．
+	// メッセージの形式を -validate の出力とそろえるため，validateQuizItem と同じ criteriaKeyErrors を使う．
 	var errs []string
 	for i, item := range data {
-		for _, e := range validateQuizItem(item, i+1) {
-			if e.Field == "criteria" {
-				errs = append(errs, e.Error())
-			}
+		for _, e := range criteriaKeyErrors(item, i+1) {
+			errs = append(errs, e.Error())
 		}
 	}
 	if len(errs) > 0 {

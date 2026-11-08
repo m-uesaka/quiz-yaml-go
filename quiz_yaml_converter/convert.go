@@ -27,11 +27,11 @@ func DetectOutputFormat(outputFile, templateFile string) OutputFormat {
 // 出力ファイルの拡張子やテンプレートファイルの有無に基づいて適切な変換関数を呼び出す．
 // criteria の不正なキー以外のバリデーションは行わない．警告が必要な場合は ConvertWithWarnings を使う．
 func Convert(yamlFilePath, outputFilePath, templateFilePath string) error {
-	data, err := loadForConvert(yamlFilePath, outputFilePath, templateFilePath)
+	data, format, err := loadForConvert(yamlFilePath, outputFilePath, templateFilePath)
 	if err != nil {
 		return err
 	}
-	return writeOutput(data, outputFilePath, templateFilePath)
+	return writeOutput(data, format, outputFilePath, templateFilePath)
 }
 
 // ConvertWithWarnings は Convert と同じ変換を行い，読み込んだデータを ValidateItems で
@@ -39,29 +39,38 @@ func Convert(yamlFilePath, outputFilePath, templateFilePath string) error {
 // 警告は読み込みに成功した場合に返し，その後の変換が失敗した場合も返す．
 // criteria の不正なキーは警告ではなく，従来どおりエラーになる．
 func ConvertWithWarnings(yamlFilePath, outputFilePath, templateFilePath string) ([]ValidationError, error) {
-	data, err := loadForConvert(yamlFilePath, outputFilePath, templateFilePath)
+	data, format, err := loadForConvert(yamlFilePath, outputFilePath, templateFilePath)
 	if err != nil {
 		return nil, err
 	}
 	warnings := ValidateItems(data)
-	return warnings, writeOutput(data, outputFilePath, templateFilePath)
+	return warnings, writeOutput(data, format, outputFilePath, templateFilePath)
 }
 
-// loadForConvert は出力フォーマットに必要な引数がそろっていることを確認してから，
-// 変換するYAMLファイルを読み込む．
-func loadForConvert(yamlFilePath, outputFilePath, templateFilePath string) ([]QuizItem, error) {
-	if DetectOutputFormat(outputFilePath, templateFilePath) == FormatTemplate && templateFilePath == "" {
-		return nil, fmt.Errorf("template file is required for non-CSV output")
+// loadForConvert は出力フォーマットを検出し，そのフォーマットに必要な引数が
+// そろっていることを確認してから，変換するYAMLファイルを読み込む．
+// 検出したフォーマットは writeOutput にそのまま渡す．
+func loadForConvert(yamlFilePath, outputFilePath, templateFilePath string) ([]QuizItem, OutputFormat, error) {
+	format := DetectOutputFormat(outputFilePath, templateFilePath)
+	if format == FormatTemplate && templateFilePath == "" {
+		return nil, format, fmt.Errorf("template file is required for non-CSV output")
 	}
-	return LoadYAMLData(yamlFilePath)
+	data, err := LoadYAMLData(yamlFilePath)
+	return data, format, err
 }
 
-// writeOutput はデータを出力ファイルのフォーマットに合わせて書き出す．
-func writeOutput(data []QuizItem, outputFilePath, templateFilePath string) error {
-	if DetectOutputFormat(outputFilePath, templateFilePath) == FormatCSV {
+// writeOutput はデータを format に合わせて書き出す．
+// DetectOutputFormat に新しいフォーマットを追加して，ここへの追加を忘れた場合に
+// 別のフォーマットで書き出してしまわないよう，未対応のフォーマットはエラーにする．
+func writeOutput(data []QuizItem, format OutputFormat, outputFilePath, templateFilePath string) error {
+	switch format {
+	case FormatCSV:
 		return writeCSV(data, outputFilePath)
+	case FormatTemplate:
+		return ConvertToTemplate(data, templateFilePath, outputFilePath)
+	default:
+		return fmt.Errorf("unsupported output format: %q", format)
 	}
-	return ConvertToTemplate(data, templateFilePath, outputFilePath)
 }
 
 // ConvertMarkdownDirToYAML はMarkdownディレクトリを1つのYAMLファイルに集約する

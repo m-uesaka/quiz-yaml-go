@@ -363,3 +363,37 @@ func TestCheckNonEmptyInvalid(t *testing.T) {
 		})
 	}
 }
+
+func TestCriteriaKeyErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		item QuizItem
+		want []ValidationError
+	}{
+		{name: "nil criteria", item: QuizItem{Question: "問題", Answer: "答え"}},
+		{name: "valid keys only", item: QuizItem{Criteria: &Criteria{OK: []string{"ok1"}}}},
+		{
+			name: "unknown key",
+			item: QuizItem{Criteria: &Criteria{unknownKeys: []unknownCriteriaKey{{name: "maybe", line: 4}}}},
+			want: []ValidationError{{Item: 2, Field: "criteria", Message: "不正なcriteriaキー: 'maybe'（4行目） (使用可能: ok, ng, repeat)"}},
+		},
+		{
+			// 空の要素など，criteria のキー以外の問題は含まない
+			name: "other problems are not included",
+			item: QuizItem{Criteria: &Criteria{OK: []string{""}, unknownKeys: []unknownCriteriaKey{{name: "maybe", line: 4}}}},
+			want: []ValidationError{{Item: 2, Field: "criteria", Message: "不正なcriteriaキー: 'maybe'（4行目） (使用可能: ok, ng, repeat)"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Act
+			got := criteriaKeyErrors(tt.item, 2)
+
+			// Assert
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("criteriaKeyErrors() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}

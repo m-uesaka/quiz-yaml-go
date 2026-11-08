@@ -111,9 +111,9 @@ func (u *unknownKeyCollector) record(key *yaml.Node, merged bool) {
 	u.keys = append(u.keys, unknownCriteriaKey{name: key.Value, line: key.Line, merged: merged})
 }
 
-// 不正なキーごとのエラーメッセージを返す．prefixは「問題 1: 」のような問題の位置を表す文字列．
+// 不正なキーごとのエラーメッセージを返す．問題番号は含まない（ValidationError.Error() で付ける）．
 // マージで取り込んだキーは，行番号が別の問題などの行を指すことがあるため，その旨を書き添える．
-func (c *Criteria) unknownKeyErrors(prefix string) []string {
+func (c *Criteria) unknownKeyErrors() []string {
 	if c == nil {
 		return nil
 	}
@@ -123,7 +123,7 @@ func (c *Criteria) unknownKeyErrors(prefix string) []string {
 		if key.merged {
 			location += "，<< で取り込み"
 		}
-		errs = append(errs, fmt.Sprintf("%s不正なcriteriaキー: '%s'（%s） (使用可能: ok, ng, repeat)", prefix, key.name, location))
+		errs = append(errs, fmt.Sprintf("不正なcriteriaキー: '%s'（%s） (使用可能: ok, ng, repeat)", key.name, location))
 	}
 	return errs
 }

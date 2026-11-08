@@ -113,9 +113,7 @@ func validateQuizItem(item QuizItem, index int) []ValidationError {
 	}
 
 	// criteriaフィールドのバリデーション
-	for _, msg := range item.Criteria.unknownKeyErrors("") {
-		errs = append(errs, ValidationError{Item: index, Field: "criteria", Message: msg})
-	}
+	errs = append(errs, criteriaKeyErrors(item, index)...)
 	c := item.criteria()
 	errs = append(errs, checkNonEmpty(index, "criteria.ok", c.OK)...)
 	errs = append(errs, checkNonEmpty(index, "criteria.ng", c.NG)...)
@@ -125,6 +123,17 @@ func validateQuizItem(item QuizItem, index int) []ValidationError {
 	errs = append(errs, checkNonEmpty(index, "comments", item.Comments)...)
 	errs = append(errs, checkNonEmpty(index, "tags", item.Tags)...)
 
+	return errs
+}
+
+// criteriaKeyErrors は criteria の ok / ng / repeat 以外のキーごとのエラーを返す．
+// indexは1始まりの問題番号．変換時（LoadYAMLData）はこのエラーだけを変換エラーにするため，
+// validateQuizItem から切り出している．
+func criteriaKeyErrors(item QuizItem, index int) []ValidationError {
+	var errs []ValidationError
+	for _, msg := range item.Criteria.unknownKeyErrors() {
+		errs = append(errs, ValidationError{Item: index, Field: "criteria", Message: msg})
+	}
 	return errs
 }
 
