@@ -25,7 +25,7 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 		}
 	}
 	if len(errs) > 0 {
-		return nil, fmt.Errorf("invalid criteria keys:\n%s", strings.Join(errs, "\n"))
+		return nil, fmt.Errorf("criteriaに不正なキーがあります:\n%s", strings.Join(errs, "\n"))
 	}
 
 	return data, nil
@@ -37,12 +37,12 @@ func LoadYAMLData(yamlFilePath string) ([]QuizItem, error) {
 func decodeYAMLFile(yamlFilePath string) ([]QuizItem, error) {
 	yamlData, err := os.ReadFile(yamlFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read YAML file: %w", err)
+		return nil, fmt.Errorf("YAMLファイルの読み込みに失敗しました: %w", err)
 	}
 
 	var data []QuizItem
 	if err := yaml.Unmarshal(yamlData, &data); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+		return nil, fmt.Errorf("YAMLの解析に失敗しました: %w", err)
 	}
 
 	return data, nil
@@ -54,10 +54,10 @@ func decodeYAMLFile(yamlFilePath string) ([]QuizItem, error) {
 func SaveYAMLData(items []QuizItem, yamlFilePath string) error {
 	out, err := yaml.Marshal(items)
 	if err != nil {
-		return fmt.Errorf("failed to marshal YAML: %w", err)
+		return fmt.Errorf("YAMLへの変換に失敗しました: %w", err)
 	}
 	if err := writeFileAtomic(yamlFilePath, out, 0o644); err != nil {
-		return fmt.Errorf("failed to write YAML file: %w", err)
+		return fmt.Errorf("YAMLファイルの書き込みに失敗しました: %w", err)
 	}
 	return nil
 }

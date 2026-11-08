@@ -45,7 +45,7 @@ var builtinTemplates = map[BuiltinTemplate]builtinTemplateSpec{
 func lookupBuiltinTemplate(builtin BuiltinTemplate) (builtinTemplateSpec, error) {
 	spec, ok := builtinTemplates[builtin]
 	if !ok {
-		return builtinTemplateSpec{}, fmt.Errorf("unsupported builtin template: %q", builtin)
+		return builtinTemplateSpec{}, fmt.Errorf("未対応の組み込みテンプレートです: %q", builtin)
 	}
 	return spec, nil
 }
@@ -89,7 +89,7 @@ func loadForBuiltinTemplate(yamlFilePath string, builtin BuiltinTemplate) ([]Qui
 func convertToBuiltinTemplate(data []QuizItem, spec builtinTemplateSpec, outputFilePath string) error {
 	content, err := fs.ReadFile(templates.FS, spec.file)
 	if err != nil {
-		return fmt.Errorf("failed to read builtin template: %w", err)
+		return fmt.Errorf("組み込みテンプレートの読み込みに失敗しました: %w", err)
 	}
 	return executeTemplateToFile(string(content), spec.htmlMode(outputFilePath), data, outputFilePath)
 }

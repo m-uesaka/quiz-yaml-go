@@ -310,7 +310,7 @@ func TestWriteCallersKeepExistingFileOnFailure(t *testing.T) {
 			write: func(path string) error {
 				return executeTemplateToFile("{{range .Items}}{{.Question}}{{end}}", false, []QuizItem{{Question: "q"}}, path)
 			},
-			wantErr: "failed to write output file",
+			wantErr: "出力ファイルの書き込みに失敗しました",
 		},
 		{
 			name: "SaveYAMLData",
@@ -318,7 +318,7 @@ func TestWriteCallersKeepExistingFileOnFailure(t *testing.T) {
 			write: func(path string) error {
 				return SaveYAMLData([]QuizItem{{Question: "q", Answer: "a"}}, path)
 			},
-			wantErr: "failed to write YAML file",
+			wantErr: "YAMLファイルの書き込みに失敗しました",
 		},
 	}
 

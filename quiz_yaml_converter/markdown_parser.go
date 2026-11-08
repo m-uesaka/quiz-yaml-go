@@ -187,7 +187,7 @@ func buildCriteria(ok, ng, close []string) *Criteria {
 func ParseMarkdownFile(mdFilePath string) (QuizItem, error) {
 	raw, err := os.ReadFile(mdFilePath)
 	if err != nil {
-		return QuizItem{}, fmt.Errorf("failed to read markdown file: %w", err)
+		return QuizItem{}, fmt.Errorf("Markdownファイルの読み込みに失敗しました: %w", err)
 	}
 
 	// 入力の正規化はここで1回だけ行い，以降の処理は BOM なし・"\n" 改行の文字列のみを扱う．
@@ -202,7 +202,7 @@ func ParseMarkdownFile(mdFilePath string) (QuizItem, error) {
 
 	var fm quizFrontmatter
 	if err := yaml.Unmarshal([]byte(fmText), &fm); err != nil {
-		return QuizItem{}, fmt.Errorf("%s: failed to parse frontmatter: %w", mdFilePath, err)
+		return QuizItem{}, fmt.Errorf("%s: frontmatterの解析に失敗しました: %w", mdFilePath, err)
 	}
 
 	sections, err := parseMarkdownSections(body)

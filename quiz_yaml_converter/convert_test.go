@@ -135,7 +135,7 @@ func TestConvertWithWarningsErrors(t *testing.T) {
 			name:       "template is required for non-CSV output",
 			content:    "- question: 問題\n  answer: 答え\n",
 			outputName: "quiz.txt",
-			wantErr:    "template file is required",
+			wantErr:    "テンプレートファイルが必要です",
 		},
 	}
 
@@ -291,8 +291,8 @@ func TestWriteOutputUnsupportedFormat(t *testing.T) {
 	err := writeOutput(data, OutputFormat("json"), output, "")
 
 	// Assert
-	if err == nil || !strings.Contains(err.Error(), `unsupported output format: "json"`) {
-		t.Fatalf("writeOutput() error = %v, want unsupported output format error", err)
+	if err == nil || !strings.Contains(err.Error(), `未対応の出力形式です: "json"`) {
+		t.Fatalf("writeOutput() error = %v, want 未対応の出力形式のエラー", err)
 	}
 	if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
 		t.Errorf("output file should not be written: stat error = %v", statErr)

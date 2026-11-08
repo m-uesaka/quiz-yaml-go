@@ -888,3 +888,42 @@ func TestConvertToTemplate_ExecutionErrorKeepsExistingOutput(t *testing.T) {
 		t.Errorf("output file = %q, want unchanged %q", string(got), existing)
 	}
 }
+
+// テンプレートファイルを読み込めない場合と，テンプレートとして解析できない場合のエラーメッセージを確認する．
+func TestConvertToTemplateReadAndParseErrors(t *testing.T) {
+	tests := []struct {
+		name       string
+		template   *string // nil の場合はテンプレートファイルを作らない
+		wantPrefix string
+	}{
+		{name: "missing template file", template: nil, wantPrefix: "テンプレートファイルの読み込みに失敗しました: "},
+		{name: "invalid template", template: ptr("{{range .Items}}"), wantPrefix: "テンプレートの解析に失敗しました: "},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			dir := t.TempDir()
+			templatePath := filepath.Join(dir, "template.txt")
+			if tt.template != nil {
+				if err := os.WriteFile(templatePath, []byte(*tt.template), 0o644); err != nil {
+					t.Fatalf("failed to write template: %v", err)
+				}
+			}
+			output := filepath.Join(dir, "out.txt")
+
+			// Act
+			err := ConvertToTemplate([]QuizItem{{Question: "問題", Answer: "答え"}}, templatePath, output)
+
+			// Assert
+			if err == nil || !strings.HasPrefix(err.Error(), tt.wantPrefix) {
+				t.Errorf("ConvertToTemplate() error = %v, want prefix %q", err, tt.wantPrefix)
+			}
+			if _, statErr := os.Stat(output); !os.IsNotExist(statErr) {
+				t.Errorf("output file should not be written: stat error = %v", statErr)
+			}
+		})
+	}
+}
+
+func ptr(s string) *string { return &s }

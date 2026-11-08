@@ -772,3 +772,44 @@ func TestSaveYAMLData_CriteriaFormat(t *testing.T) {
 		t.Errorf("SaveYAMLData output =\n%s\nwant\n%s", got, expected)
 	}
 }
+
+// Markdownファイルを読み込めない場合と，frontmatterをYAMLとして解析できない場合のエラーメッセージを確認する．
+func TestParseMarkdownFile_ReadAndFrontmatterErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     *string // nil の場合はファイルを作らない
+		wantMessage func(path string) string
+	}{
+		{
+			name:        "missing file",
+			content:     nil,
+			wantMessage: func(string) string { return "Markdownファイルの読み込みに失敗しました: " },
+		},
+		{
+			name:        "invalid frontmatter",
+			content:     ptr("---\ntitle: [閉じていない配列\n---\n## Question\n\n問題\n\n## Answer\n\n答え\n"),
+			wantMessage: func(path string) string { return path + ": frontmatterの解析に失敗しました: " },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			path := filepath.Join(t.TempDir(), "quiz.md")
+			if tt.content != nil {
+				if err := os.WriteFile(path, []byte(*tt.content), 0o644); err != nil {
+					t.Fatalf("failed to write markdown: %v", err)
+				}
+			}
+			want := tt.wantMessage(path)
+
+			// Act
+			_, err := ParseMarkdownFile(path)
+
+			// Assert
+			if err == nil || !strings.HasPrefix(err.Error(), want) {
+				t.Errorf("ParseMarkdownFile() error = %v, want prefix %q", err, want)
+			}
+		})
+	}
+}

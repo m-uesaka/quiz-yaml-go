@@ -100,7 +100,7 @@ func parseTemplateWithClock(content string, htmlMode bool, now func() time.Time)
 func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string) error {
 	templateContent, err := os.ReadFile(templateFilePath)
 	if err != nil {
-		return fmt.Errorf("failed to read template file: %w", err)
+		return fmt.Errorf("テンプレートファイルの読み込みに失敗しました: %w", err)
 	}
 
 	htmlMode := isHTMLPath(templateFilePath) || isHTMLPath(outputFilePath)
@@ -112,7 +112,7 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 func executeTemplateToFile(content string, htmlMode bool, data []QuizItem, outputFilePath string) error {
 	tmpl, err := parseTemplate(content, htmlMode)
 	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
+		return fmt.Errorf("テンプレートの解析に失敗しました: %w", err)
 	}
 
 	// テンプレートの実行が途中で失敗した場合（html/templateのエスケープエラーを含む）に
@@ -124,11 +124,11 @@ func executeTemplateToFile(content string, htmlMode bool, data []QuizItem, outpu
 	var buf bytes.Buffer
 	templateData := TemplateData{Items: data}
 	if err := tmpl.Execute(&buf, templateData); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
+		return fmt.Errorf("テンプレートの実行に失敗しました: %w", err)
 	}
 
 	if err := writeFileAtomic(outputFilePath, buf.Bytes(), 0o666); err != nil {
-		return fmt.Errorf("failed to write output file: %w", err)
+		return fmt.Errorf("出力ファイルの書き込みに失敗しました: %w", err)
 	}
 
 	return nil

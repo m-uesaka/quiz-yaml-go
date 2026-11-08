@@ -37,11 +37,11 @@
 - テンプレートを使わないCSV出力（`-format csv`，`ConvertYAMLToCSV`）を，組み込みのCSVテンプレートで出力するようにした（#11）
   - 出力内容は変わらない
   - すべての出力を「メモリ上で組み立て，テンプレートの実行に成功した場合のみファイルに書き込む」処理に揃えた（書き込みの途中で失敗した場合も既存のファイルを壊さないようにした．#47）
-  - CSVの出力ファイルを作成できない場合のエラーメッセージが `failed to create CSV file: ...` から `failed to write output file: ...` に変わる
+  - CSVの出力ファイルを作成できない場合のエラーメッセージが `failed to create CSV file: ...` から `出力ファイルの書き込みに失敗しました: ...` に変わる（日本語のメッセージは #20）
 - テンプレートで出力する場合に新しく作るファイルの権限を，`0644` から，CSV出力と同じ `0666` から umask を引いたものにした（#11）
   - umask が `022` の場合は従来どおり `0644` になる．テンプレートを使わないCSV出力の権限は変わらない
 - バリデーション処理を整理し，空要素のチェックを共通化した（#18）
-- 入力のYAMLファイルを開けない場合のエラーメッセージを `failed to open YAML file: ...` から `failed to read YAML file: ...` に変更した（#18）
+- 入力のYAMLファイルを開けない場合のエラーメッセージを `failed to open YAML file: ...` から `YAMLファイルの読み込みに失敗しました: ...` に変更した（#18, #20）
 - `-markdown-dir` で `-recursive` を指定しない場合も，拡張子の大文字・小文字を区別せずにMarkdownファイルを集めるようにした（#19）
   - `QUIZ.MD` や `quiz.Md` も対象になる（`-recursive` を指定した場合は以前からこの動作だった）
   - 拡張子が `.md` のディレクトリと，ディレクトリを指すシンボリックリンクは対象外になる
@@ -50,6 +50,13 @@
   - ライブラリの `AggregateMarkdownDir` も，空のスライスではなくエラーを返す
 - `-markdown-dir` にファイルを指定した場合，`-recursive` の有無にかかわらずエラーにするようにした（#30）
   - 以前は `-recursive` を指定するとそのファイル1つだけを変換していた
+- Goのパッケージが返すエラーメッセージのうち，英語だったものを日本語に統一した（#20）
+  - CLIの表示や，すでに日本語だったメッセージ（Markdownの解析・バリデーションなど）に合わせるため
+  - `failed to read YAML file` → `YAMLファイルの読み込みに失敗しました`，`failed to parse YAML` → `YAMLの解析に失敗しました`，`failed to marshal YAML` → `YAMLへの変換に失敗しました`，`failed to write YAML file` → `YAMLファイルの書き込みに失敗しました`，`invalid criteria keys` → `criteriaに不正なキーがあります`
+  - `failed to read template file` → `テンプレートファイルの読み込みに失敗しました`，`failed to parse template` → `テンプレートの解析に失敗しました`，`failed to execute template` → `テンプレートの実行に失敗しました`，`failed to write output file` → `出力ファイルの書き込みに失敗しました`
+  - `failed to read builtin template` → `組み込みテンプレートの読み込みに失敗しました`，`unsupported builtin template` → `未対応の組み込みテンプレートです`，`template file is required for non-CSV output` → `CSV以外の形式で出力するにはテンプレートファイルが必要です`，`unsupported output format` → `未対応の出力形式です`
+  - `failed to read markdown file` → `Markdownファイルの読み込みに失敗しました`，`failed to parse frontmatter` → `frontmatterの解析に失敗しました`
+  - 包んでいる元のエラー（Goの標準ライブラリや yaml.v3 のメッセージ）はそのまま．`errors.Is` / `errors.As` で `fs.ErrNotExist` などを判定できることも変わらない
 
 ### 修正
 
@@ -81,6 +88,8 @@
   - `-format` と `-template` をどちらも省略した場合は従来どおり，拡張子が `.csv` のときだけCSVで出力し，それ以外の拡張子ではエラーになる．エラーメッセージは `-format` または `-template` の指定を促す内容に変わり，ヘルプも表示する
   - これに合わせて，`-format` のヘルプに表示していた既定値 `csv` をなくし，省略した場合の動作を説明するようにした．指定できる値に `md`（`markdown` と同じ）も表示する
   - 修正したのはCLIのみ．Goのパッケージの `Convert` は従来どおり，テンプレートを指定しない場合は出力ファイルの拡張子で形式を判定する．拡張子に関係なくCSVを出力する場合は `ConvertWithBuiltinTemplate(yamlFilePath, outputFilePath, BuiltinCSV)` を使う
+- テンプレート関数 `addQuotes`（`AddQuotesIfNeeded`）と判定基準の整形（`formatCriteria` など）で，「で始まらず途中に」を含む値（例: `美術館」（おまけ）`）の末尾にも」が付き，`「美術館」（おまけ）」` のように閉じ括弧が2つになる問題を修正（#20）
+  - コメントに書かれていたとおり，先頭に「だけを付けて `「美術館」（おまけ）` を返す（「で始まり途中に」を含む `「美術館」（おまけ）` をそのまま返すのと対になる）
 
 ## [1.0.0] - 2026-11-04
 

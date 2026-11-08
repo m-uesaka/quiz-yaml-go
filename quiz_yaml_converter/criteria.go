@@ -140,7 +140,7 @@ func (c *Criteria) IsEmpty() bool {
 //   - "」"がどこかに含まれている場合はそのまま返す
 //   - 含まれていない場合は"」"を追加して返す
 //
-// - "」"を含むが"「"で始まっていない場合は"「"を追加して返す
+// - "「"で始まっていないが"」"を含む場合は"「"を追加して返す（例: "美術館」（おまけ）" → "「美術館」（おまけ）"）
 // - どちらも含まれていない場合は"「"と"」"を最初と最後に追加して返す．
 func AddQuotesIfNeeded(item string) string {
 	// Already starts with 「 and ends with 」
@@ -152,13 +152,12 @@ func AddQuotesIfNeeded(item string) string {
 		// Contains 」 somewhere (like 「美術館」（おまけ））
 		if strings.Contains(item, "」") {
 			return item
-		} else {
-			// Starts with 「 but no 」, add 」
-			return item + "」"
 		}
+		// Starts with 「 but no 」, add 」
+		return item + "」"
 	}
-	// Ends with 」 but doesn't start with 「
-	if !strings.HasPrefix(item, "「") && strings.HasSuffix(item, "」") {
+	// Contains 」 but doesn't start with 「 (like 美術館」（おまけ）)
+	if strings.Contains(item, "」") {
 		return "「" + item
 	}
 	// No quotes at all, add both
