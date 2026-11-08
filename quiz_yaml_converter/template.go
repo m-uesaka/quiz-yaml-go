@@ -37,6 +37,8 @@ func baseTemplateFuncs(now func() time.Time) map[string]any {
 		"quoteAll":       formatCriteriaSection,
 		"csvRow":         CSVRow,
 		"csvField":       CSVField,
+		"csvRowSafe":     CSVRowSafe,
+		"csvFieldSafe":   CSVFieldSafe,
 		"addQuotes":      AddQuotesIfNeeded,
 		"join":           strings.Join,
 		"upper":          strings.ToUpper,

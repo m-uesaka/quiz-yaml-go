@@ -25,6 +25,9 @@
   - `ValidationError` に，元になったファイルのパスを表す `Source` フィールドを追加
 - Goのパッケージに，組み込みテンプレートで変換する `ConvertWithBuiltinTemplate` / `ConvertWithBuiltinTemplateWithWarnings` と，組み込みテンプレートの種類を表す `BuiltinTemplate`（`BuiltinCSV` / `BuiltinHTML` / `BuiltinMarkdown`）を追加（#11）
 - 組み込みテンプレートを埋め込んだ `templates` パッケージ（`templates.FS`）を追加（#11）
+- 表計算ソフトで数式として解釈される値の先頭に `'` を付けてからCSVのフィールドに整形するテンプレート関数 `csvRowSafe` / `csvFieldSafe` を追加（#12）
+  - Goのパッケージにも，対応する `CSVRowSafe` / `CSVFieldSafe` と，値の先頭に `'` を付けるだけの `EscapeCSVFormula` を追加
+  - 既存の `csvRow` / `csvField`（`CSVRow` / `CSVField`）の出力は変わらない
 
 ### 変更
 
@@ -55,6 +58,10 @@
 - `-markdown-dir` にディレクトリを指すシンボリックリンクを指定して `-recursive` を付けた場合，リンク先のファイルが集められずに空のリストが書き出される問題を修正（#30）
 - `criteria` に `<<: *anchor` で取り込んだ内容に `ok` / `ng` / `repeat` 以外のキー（書き間違いなど）がある場合，エラーにならずに無視されていた問題を修正（#37）
   - エラーには取り込み元の行番号を `（3行目，<< で取り込み）` のように表示する
+- CSV出力（`-format csv`，`ConvertYAMLToCSV`，組み込みのCSVテンプレート `templates/quiz_template.csv`）で，`=HYPERLINK(...)` や `@SUM(...)` のような値が，ExcelやGoogle スプレッドシートで開いたときに数式として実行される問題（CSV injection）を修正（#12）
+  - 先頭の半角スペースを除いた最初の文字が `=` / `+` / `-` / `@` / タブ / CR の値の先頭に `'` を付ける（OWASPの推奨する対策）
+  - 他人が作ったYAMLを変換して開く場合にも安全なように，既定で有効にした
+  - `-1` や `- 項目` のように `-` などで始まる値も `'-1` のように出力が変わる．表計算ソフト以外のプログラムでCSVを読み込む場合など，以前と同じ出力が必要なときは，`csvRow` を使ったテンプレートを `-template` で指定する
 - 先頭にUTF-8のBOMが付いたMarkdownファイル（Windowsのメモ帳などで保存したもの）が「frontmatterが見つかりません」で失敗する問題を修正（#19）
 - 組み込みのMarkdownテンプレート（`templates/quiz_template.md`）で，問題文・答え・コメント・判定基準に改行が含まれると，段落が途切れたり2行目以降が見出し・リストなどとして解釈されたりする問題を修正（#31）
   - 改行を `<br>` に置き換えて1行にまとめるテンプレート関数 `nl2br` を追加し，組み込みのMarkdownテンプレートで使うようにした

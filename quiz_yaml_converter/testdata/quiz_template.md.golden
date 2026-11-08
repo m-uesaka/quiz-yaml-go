@@ -59,3 +59,18 @@
 ---
 
 
+## Question 5
+
+
+
+**Q:** =HYPERLINK(&#34;http://example.com&#34;,&#34;数式として解釈される問題&#34;)
+
+**Answer:** -1
+
+
+**Criteria:** 「+1」
+
+
+---
+
+
