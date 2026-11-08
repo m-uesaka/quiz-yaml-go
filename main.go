@@ -77,7 +77,7 @@ func run(prog string, args []string, stdout, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.csv\n", prog)
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.html -format html\n", prog)
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.md -template custom.tmpl\n", prog)
-		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n", prog)
+		fmt.Fprintf(stderr, "  %s -input quiz.yaml -output quiz.md -format markdown\n", prog)
 		fmt.Fprintf(stderr, "  %s -input quiz.yaml -validate\n", prog)
 		fmt.Fprintf(stderr, "  %s -markdown-dir path/to/quiz -output quiz.yaml\n", prog)
 		fmt.Fprintf(stderr, "  %s -markdown-dir path/to/quiz -recursive -output quiz.yaml\n", prog)

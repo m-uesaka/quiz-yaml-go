@@ -18,22 +18,47 @@ const (
 	BuiltinMarkdown BuiltinTemplate = "markdown" // Markdown（templates/quiz_template.md）
 )
 
-// builtinTemplateFiles は組み込みテンプレートの種類と，templates.FS 内のファイル名の対応表．
-var builtinTemplateFiles = map[BuiltinTemplate]string{
-	BuiltinCSV:      templates.CSV,
-	BuiltinHTML:     templates.HTML,
-	BuiltinMarkdown: templates.Markdown,
+// builtinTemplateSpec は組み込みテンプレート1つ分の設定．
+type builtinTemplateSpec struct {
+	file string // templates.FS 内のファイル名
+
+	// escapeForHTMLOutput は，出力ファイルの拡張子がHTMLの場合に値をHTMLエスケープするかどうか．
+	// ConvertToTemplate では出力ファイルの拡張子がHTMLならエスケープするが，CSVは従来の
+	// ConvertYAMLToCSV と同じく，出力ファイルの拡張子に関係なくエスケープしない．
+	// （テンプレート自体がHTMLの場合は，この設定に関係なく常にエスケープする．）
+	escapeForHTMLOutput bool
+}
+
+// htmlMode は，このテンプレートで outputFilePath に出力する場合にHTMLモードを使うかどうかを返す．
+func (s builtinTemplateSpec) htmlMode(outputFilePath string) bool {
+	return isHTMLPath(s.file) || (s.escapeForHTMLOutput && isHTMLPath(outputFilePath))
+}
+
+// builtinTemplates は組み込みテンプレートの種類と，その設定の対応表．
+var builtinTemplates = map[BuiltinTemplate]builtinTemplateSpec{
+	BuiltinCSV:      {file: templates.CSV, escapeForHTMLOutput: false},
+	BuiltinHTML:     {file: templates.HTML, escapeForHTMLOutput: true},
+	BuiltinMarkdown: {file: templates.Markdown, escapeForHTMLOutput: true},
+}
+
+// lookupBuiltinTemplate は組み込みテンプレートの設定を返す．未対応の種類の場合はエラーを返す．
+func lookupBuiltinTemplate(builtin BuiltinTemplate) (builtinTemplateSpec, error) {
+	spec, ok := builtinTemplates[builtin]
+	if !ok {
+		return builtinTemplateSpec{}, fmt.Errorf("unsupported builtin template: %q", builtin)
+	}
+	return spec, nil
 }
 
 // ConvertWithBuiltinTemplate はYAMLファイルを組み込みテンプレートで変換し，出力ファイルに書き出す．
 // ファイルシステム上のテンプレートを使う場合は Convert を使う．
 // criteria の不正なキー以外のバリデーションは行わない．警告が必要な場合は ConvertWithBuiltinTemplateWithWarnings を使う．
 func ConvertWithBuiltinTemplate(yamlFilePath, outputFilePath string, builtin BuiltinTemplate) error {
-	data, err := loadForBuiltinTemplate(yamlFilePath, builtin)
+	data, spec, err := loadForBuiltinTemplate(yamlFilePath, builtin)
 	if err != nil {
 		return err
 	}
-	return convertToBuiltinTemplate(data, builtin, outputFilePath)
+	return convertToBuiltinTemplate(data, spec, outputFilePath)
 }
 
 // ConvertWithBuiltinTemplateWithWarnings は ConvertWithBuiltinTemplate と同じ変換を行い，
@@ -41,34 +66,30 @@ func ConvertWithBuiltinTemplate(yamlFilePath, outputFilePath string, builtin Bui
 // 警告は読み込みに成功した場合に返し，その後の変換が失敗した場合も返す．
 // criteria の不正なキーは警告ではなく，エラーになる．
 func ConvertWithBuiltinTemplateWithWarnings(yamlFilePath, outputFilePath string, builtin BuiltinTemplate) ([]ValidationError, error) {
-	data, err := loadForBuiltinTemplate(yamlFilePath, builtin)
+	data, spec, err := loadForBuiltinTemplate(yamlFilePath, builtin)
 	if err != nil {
 		return nil, err
 	}
 	warnings := ValidateItems(data)
-	return warnings, convertToBuiltinTemplate(data, builtin, outputFilePath)
+	return warnings, convertToBuiltinTemplate(data, spec, outputFilePath)
 }
 
 // loadForBuiltinTemplate は組み込みテンプレートの種類が正しいことを確認してから，YAMLファイルを読み込む．
-func loadForBuiltinTemplate(yamlFilePath string, builtin BuiltinTemplate) ([]QuizItem, error) {
-	if _, ok := builtinTemplateFiles[builtin]; !ok {
-		return nil, fmt.Errorf("unsupported builtin template: %q", builtin)
+func loadForBuiltinTemplate(yamlFilePath string, builtin BuiltinTemplate) ([]QuizItem, builtinTemplateSpec, error) {
+	spec, err := lookupBuiltinTemplate(builtin)
+	if err != nil {
+		return nil, builtinTemplateSpec{}, err
 	}
-	return LoadYAMLData(yamlFilePath)
+	data, err := LoadYAMLData(yamlFilePath)
+	return data, spec, err
 }
 
 // convertToBuiltinTemplate は問題データを組み込みテンプレートで変換し，出力ファイルに書き出す．
-// HTMLモードの判定は ConvertToTemplate と同じく，テンプレートか出力ファイルの拡張子で行う．
-// ただしCSVは，出力ファイルの拡張子に関係なく常にエスケープせずに出力する．
-func convertToBuiltinTemplate(data []QuizItem, builtin BuiltinTemplate, outputFilePath string) error {
-	name, ok := builtinTemplateFiles[builtin]
-	if !ok {
-		return fmt.Errorf("unsupported builtin template: %q", builtin)
-	}
-	content, err := fs.ReadFile(templates.FS, name)
+// HTMLモードを使うかどうかは builtinTemplateSpec.htmlMode で決める．
+func convertToBuiltinTemplate(data []QuizItem, spec builtinTemplateSpec, outputFilePath string) error {
+	content, err := fs.ReadFile(templates.FS, spec.file)
 	if err != nil {
 		return fmt.Errorf("failed to read builtin template: %w", err)
 	}
-	htmlMode := isHTMLPath(name) || (builtin != BuiltinCSV && isHTMLPath(outputFilePath))
-	return executeTemplateToFile(string(content), htmlMode, data, outputFilePath)
+	return executeTemplateToFile(string(content), spec.htmlMode(outputFilePath), data, outputFilePath)
 }

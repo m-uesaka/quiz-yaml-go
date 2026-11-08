@@ -66,7 +66,7 @@ func loadForConvert(yamlFilePath, outputFilePath, templateFilePath string) ([]Qu
 func writeOutput(data []QuizItem, format OutputFormat, outputFilePath, templateFilePath string) error {
 	switch format {
 	case FormatCSV:
-		return convertToBuiltinTemplate(data, BuiltinCSV, outputFilePath)
+		return convertToBuiltinTemplate(data, builtinTemplates[BuiltinCSV], outputFilePath)
 	case FormatTemplate:
 		return ConvertToTemplate(data, templateFilePath, outputFilePath)
 	default:

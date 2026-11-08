@@ -150,3 +150,72 @@ func TestConvertWriteError(t *testing.T) {
 		})
 	}
 }
+
+// 組み込みテンプレートごとに，出力ファイルの拡張子に応じてHTMLモードを使うかどうかを確認する．
+// CSVは従来の ConvertYAMLToCSV と同じく，出力ファイルの拡張子がHTMLでもエスケープしない．
+func TestBuiltinTemplateSpecHTMLMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		builtin    BuiltinTemplate
+		outputName string
+		want       bool
+	}{
+		{name: "csv to .csv", builtin: BuiltinCSV, outputName: "quiz.csv", want: false},
+		{name: "csv to .html", builtin: BuiltinCSV, outputName: "quiz.html", want: false},
+		{name: "html to .html", builtin: BuiltinHTML, outputName: "quiz.html", want: true},
+		{name: "html to .txt", builtin: BuiltinHTML, outputName: "quiz.txt", want: true},
+		{name: "markdown to .md", builtin: BuiltinMarkdown, outputName: "quiz.md", want: false},
+		{name: "markdown to .html", builtin: BuiltinMarkdown, outputName: "quiz.html", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Arrange
+			spec, err := lookupBuiltinTemplate(tt.builtin)
+			if err != nil {
+				t.Fatalf("lookupBuiltinTemplate() error = %v", err)
+			}
+
+			// Act
+			got := spec.htmlMode(tt.outputName)
+
+			// Assert
+			if got != tt.want {
+				t.Errorf("htmlMode(%q) = %v, want %v", tt.outputName, got, tt.want)
+			}
+		})
+	}
+}
+
+// 組み込みのCSVテンプレートで拡張子が .html のファイルに出力しても，値をエスケープしないことを確認する．
+func TestConvertWithBuiltinCSVToHTMLFileDoesNotEscape(t *testing.T) {
+	// Arrange
+	dir := t.TempDir()
+	input := writeTestFile(t, dir, "quiz.yaml", "- question: <b>問題</b>\n  answer: 答え\n")
+	output := filepath.Join(dir, "quiz.html")
+
+	// Act
+	err := ConvertWithBuiltinTemplate(input, output, BuiltinCSV)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("ConvertWithBuiltinTemplate() error = %v", err)
+	}
+	got, err := os.ReadFile(output)
+	if err != nil {
+		t.Fatalf("failed to read output: %v", err)
+	}
+	if want := "<b>問題</b>,答え,,\n"; !strings.Contains(string(got), want) {
+		t.Errorf("output = %q, want it to contain %q", got, want)
+	}
+}
+
+func TestLookupBuiltinTemplateUnsupported(t *testing.T) {
+	// Act
+	_, err := lookupBuiltinTemplate(BuiltinTemplate("pdf"))
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), `unsupported builtin template: "pdf"`) {
+		t.Errorf("lookupBuiltinTemplate() error = %v, want unsupported builtin template error", err)
+	}
+}

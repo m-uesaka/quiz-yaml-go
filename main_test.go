@@ -44,7 +44,7 @@ const wantUsage = "使用法: quiz-yaml-converter [オプション]\n" +
 	"  quiz-yaml-converter -input quiz.yaml -output quiz.csv\n" +
 	"  quiz-yaml-converter -input quiz.yaml -output quiz.html -format html\n" +
 	"  quiz-yaml-converter -input quiz.yaml -output quiz.md -template custom.tmpl\n" +
-	"  quiz-yaml-converter -input quiz.yaml -output quiz.csv -template templates/quiz_template.csv\n" +
+	"  quiz-yaml-converter -input quiz.yaml -output quiz.md -format markdown\n" +
 	"  quiz-yaml-converter -input quiz.yaml -validate\n" +
 	"  quiz-yaml-converter -markdown-dir path/to/quiz -output quiz.yaml\n" +
 	"  quiz-yaml-converter -markdown-dir path/to/quiz -recursive -output quiz.yaml\n"
