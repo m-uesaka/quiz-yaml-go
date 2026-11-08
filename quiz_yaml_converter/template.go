@@ -81,13 +81,20 @@ func ConvertToTemplate(data []QuizItem, templateFilePath, outputFilePath string)
 	}
 
 	htmlMode := isHTMLPath(templateFilePath) || isHTMLPath(outputFilePath)
-	tmpl, err := parseTemplate(string(templateContent), htmlMode)
+	return executeTemplateToFile(string(templateContent), htmlMode, data, outputFilePath)
+}
+
+// テンプレートの内容contentを解析・実行し，結果を出力ファイルに書き込む．
+// ファイルシステム上のテンプレートと組み込みテンプレートの両方で使う共通の出力処理．
+func executeTemplateToFile(content string, htmlMode bool, data []QuizItem, outputFilePath string) error {
+	tmpl, err := parseTemplate(content, htmlMode)
 	if err != nil {
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
 	// テンプレートの実行が途中で失敗した場合（html/templateのエスケープエラーを含む）に
 	// 既存の出力ファイルを壊さないよう，一度メモリ上に出力してから，成功した場合のみファイルに書き込む．
+	// os.WriteFile は書き込みとクローズのどちらのエラーも返すため，書き込みの失敗も呼び出し元に伝わる．
 	var buf bytes.Buffer
 	templateData := TemplateData{Items: data}
 	if err := tmpl.Execute(&buf, templateData); err != nil {

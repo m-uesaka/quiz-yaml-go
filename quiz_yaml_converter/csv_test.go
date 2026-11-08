@@ -177,7 +177,7 @@ func TestCSVField(t *testing.T) {
 	}
 }
 
-// 組み込みCSVテンプレートの出力が，テンプレートを使わないCSV変換と一致することを確認する．
+// templates/quiz_template.csv を指定した出力と，テンプレートを使わないCSV変換の出力が，どちらも期待する内容になることを確認する．
 func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
 	// Arrange
 	tempDir := t.TempDir()
@@ -212,16 +212,19 @@ func TestCSVTemplateMatchesDefaultCSV(t *testing.T) {
 	}
 
 	// Assert
-	want, err := os.ReadFile(defaultCSV)
-	if err != nil {
-		t.Fatalf("Failed to read default CSV: %v", err)
-	}
-	got, err := os.ReadFile(templateCSV)
-	if err != nil {
-		t.Fatalf("Failed to read template CSV: %v", err)
-	}
-	if string(got) != string(want) {
-		t.Errorf("template CSV output = %q, want %q", string(got), string(want))
+	// テンプレートを使わないCSV変換も組み込みのCSVテンプレートで出力するため，
+	// 以前のencoding/csvによる実装と同じ内容になっていることを，期待する出力と直接比較して確認する．
+	const want = "question,answer,spell,criteria\n" +
+		`"カンマ, を含む問題","""引用符""を含む答え",spell,「別解1」／「誤答1」は誤答／「もう一度1」はもう一度` + "\n" +
+		"\"改行を\n含む問題\",答え2,,\n"
+	for _, path := range []string{defaultCSV, templateCSV} {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("Failed to read CSV: %v", err)
+		}
+		if string(got) != want {
+			t.Errorf("CSV output of %s = %q, want %q", filepath.Base(path), string(got), want)
+		}
 	}
 }
 

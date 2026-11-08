@@ -123,6 +123,7 @@ quiz-yaml-go/
 │   ├── criteria.go            # 判定基準（Criteria）の読み込みとフォーマット
 │   ├── csv.go                 # CSVの整形とYAML→CSV変換
 │   ├── template.go            # テンプレート処理（HTMLモードの判定を含む）
+│   ├── builtin.go             # 組み込みテンプレートを使った変換
 │   ├── validate.go            # YAMLファイルのバリデーション
 │   ├── yaml_io.go             # YAMLファイルの読み書き
 │   ├── convert.go             # 出力形式の判定と変換のエントリーポイント（Markdown→YAML変換を含む）
@@ -131,9 +132,13 @@ quiz-yaml-go/
 │   └── testdata/              # テスト用のデータ（テンプレートのスナップショットなど）
 └── templates/                 # テンプレートファイル用ディレクトリ
     ├── TEMPLATE_GUIDE.md      # テンプレート作成ガイド
+    ├── embed.go               # 組み込みテンプレートをgo:embedでバイナリに埋め込む
+    ├── quiz_template.csv      # CSV出力用テンプレート
     ├── quiz_template.html     # HTML出力用テンプレート
     └── quiz_template.md       # Markdown出力用テンプレート
 ```
+
+`-format csv` / `html` / `markdown` で使う組み込みテンプレート（`templates/quiz_template.*`）はバイナリに埋め込まれているため，ビルドしたバイナリはどのディレクトリからでも実行できます．`-template` で指定したテンプレートファイルは，実行時にファイルシステムから読み込みます．
 
 ## コマンドライン引数
 

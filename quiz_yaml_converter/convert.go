@@ -25,6 +25,7 @@ func DetectOutputFormat(outputFile, templateFile string) OutputFormat {
 // 全体の変換処理を行うエントリーポイント．
 // 出力ファイルのフォーマットを検出し，CSV形式またはテンプレート形式に変換する．
 // 出力ファイルの拡張子やテンプレートファイルの有無に基づいて適切な変換関数を呼び出す．
+// CSV形式は組み込みのCSVテンプレート（templates/quiz_template.csv）で出力する．
 // criteria の不正なキー以外のバリデーションは行わない．警告が必要な場合は ConvertWithWarnings を使う．
 func Convert(yamlFilePath, outputFilePath, templateFilePath string) error {
 	data, format, err := loadForConvert(yamlFilePath, outputFilePath, templateFilePath)
@@ -65,7 +66,7 @@ func loadForConvert(yamlFilePath, outputFilePath, templateFilePath string) ([]Qu
 func writeOutput(data []QuizItem, format OutputFormat, outputFilePath, templateFilePath string) error {
 	switch format {
 	case FormatCSV:
-		return writeCSV(data, outputFilePath)
+		return convertToBuiltinTemplate(data, BuiltinCSV, outputFilePath)
 	case FormatTemplate:
 		return ConvertToTemplate(data, templateFilePath, outputFilePath)
 	default:

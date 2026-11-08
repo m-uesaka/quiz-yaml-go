@@ -23,9 +23,18 @@
   - `ValidationResult` に構造化したエラーの `Details` フィールドを追加（`Errors` は従来どおり）
   - 警告を返す `ConvertWithWarnings` / `ConvertMarkdownDirToYAMLWithWarnings` を追加
   - `ValidationError` に，元になったファイルのパスを表す `Source` フィールドを追加
+- Goのパッケージに，組み込みテンプレートで変換する `ConvertWithBuiltinTemplate` / `ConvertWithBuiltinTemplateWithWarnings` と，組み込みテンプレートの種類を表す `BuiltinTemplate`（`BuiltinCSV` / `BuiltinHTML` / `BuiltinMarkdown`）を追加（#11）
+- 組み込みテンプレートを埋め込んだ `templates` パッケージ（`templates.FS`）を追加（#11）
 
 ### 変更
 
+- 組み込みテンプレート（`templates/quiz_template.csv` / `.html` / `.md`）を `go:embed` でバイナリに埋め込むようにした（#11）
+  - `-format html` / `-format markdown` が，リポジトリのルート以外をカレントディレクトリにしても使えるようになった
+  - `-template` で指定したテンプレートファイルは，従来どおり実行時にファイルシステムから読み込む
+- テンプレートを使わないCSV出力（`-format csv`，`ConvertYAMLToCSV`）を，組み込みのCSVテンプレートで出力するようにした（#11）
+  - 出力内容は変わらない
+  - すべての出力を「メモリ上で組み立ててから，成功した場合のみファイルに書き込む」処理に揃えた
+  - CSVの出力ファイルを作成できない場合のエラーメッセージが `failed to create CSV file: ...` から `failed to write output file: ...` に変わる
 - バリデーション処理を整理し，空要素のチェックを共通化した（#18）
 - 入力のYAMLファイルを開けない場合のエラーメッセージを `failed to open YAML file: ...` から `failed to read YAML file: ...` に変更した（#18）
 - `-markdown-dir` で `-recursive` を指定しない場合も，拡張子の大文字・小文字を区別せずにMarkdownファイルを集めるようにした（#19）
@@ -39,6 +48,7 @@
 
 ### 修正
 
+- CSV出力で書き込みやファイルのクローズに失敗した場合に，最後の行が失われてもエラーにならず「✅ CSV変換完了」と表示される問題を修正（#11）
 - `-markdown-dir` に存在しないディレクトリを指定した場合，`-recursive` の有無にかかわらずエラーになるようにした（#19, #30）
 - `-markdown-dir` にディレクトリを指すシンボリックリンクを指定して `-recursive` を付けた場合，リンク先のファイルが集められずに空のリストが書き出される問題を修正（#30）
 - `criteria` に `<<: *anchor` で取り込んだ内容に `ok` / `ng` / `repeat` 以外のキー（書き間違いなど）がある場合，エラーにならずに無視されていた問題を修正（#37）
