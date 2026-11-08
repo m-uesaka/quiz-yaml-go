@@ -29,6 +29,11 @@ type templateExecutor interface {
 	Execute(w io.Writer, data any) error
 }
 
+// テンプレート関数 now が使う現在時刻の取得元．
+// テストで時刻を固定するために差し替えられるよう，変数にしている．
+// 差し替えるテストは t.Cleanup で元に戻し，t.Parallel を使わないこと．
+var nowFunc = time.Now
+
 // テンプレートに提供する関数のうち，エスケープモードに依存しないもの．
 func baseTemplateFuncs() map[string]any {
 	return map[string]any{
@@ -44,8 +49,9 @@ func baseTemplateFuncs() map[string]any {
 		"add": func(a, b int) int {
 			return a + b
 		},
+		// 時刻は nowFunc が返したタイムゾーンのまま（通常はローカル時刻で）出力する．
 		"now": func() string {
-			return time.Now().Format("2006年01月02日 15:04:05")
+			return nowFunc().Format("2006年01月02日 15:04:05")
 		},
 	}
 }
