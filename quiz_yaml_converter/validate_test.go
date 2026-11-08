@@ -175,14 +175,10 @@ func TestValidationErrorFormat(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Act
 			gotError := tt.err.Error()
-			gotString := tt.err.String()
 
 			// Assert
 			if gotError != tt.want {
 				t.Errorf("Error() = %q, want %q", gotError, tt.want)
-			}
-			if gotString != tt.want {
-				t.Errorf("String() = %q, want %q", gotString, tt.want)
 			}
 		})
 	}

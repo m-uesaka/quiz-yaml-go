@@ -33,11 +33,6 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("問題 %d: %s", e.Item, e.Message)
 }
 
-// String は Error() と同じ文字列を返す．
-func (e ValidationError) String() string {
-	return e.Error()
-}
-
 // ValidationResult はバリデーション結果を表す構造体
 type ValidationResult struct {
 	IsValid bool              // バリデーションが成功したかどうか
