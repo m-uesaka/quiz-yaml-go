@@ -54,7 +54,7 @@ func ConvertWithWarnings(yamlFilePath, outputFilePath, templateFilePath string) 
 func loadForConvert(yamlFilePath, outputFilePath, templateFilePath string) ([]QuizItem, OutputFormat, error) {
 	format := DetectOutputFormat(outputFilePath, templateFilePath)
 	if format == FormatTemplate && templateFilePath == "" {
-		return nil, format, fmt.Errorf("template file is required for non-CSV output")
+		return nil, format, fmt.Errorf("CSV以外の形式で出力するにはテンプレートファイルが必要です")
 	}
 	data, err := LoadYAMLData(yamlFilePath)
 	return data, format, err
@@ -70,7 +70,7 @@ func writeOutput(data []QuizItem, format OutputFormat, outputFilePath, templateF
 	case FormatTemplate:
 		return ConvertToTemplate(data, templateFilePath, outputFilePath)
 	default:
-		return fmt.Errorf("unsupported output format: %q", format)
+		return fmt.Errorf("未対応の出力形式です: %q", format)
 	}
 }
 

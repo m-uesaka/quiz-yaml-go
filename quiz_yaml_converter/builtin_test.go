@@ -64,25 +64,25 @@ func TestConvertWithBuiltinTemplateErrors(t *testing.T) {
 			name:    "unsupported builtin template",
 			builtin: BuiltinTemplate("json"),
 			output:  func(dir string) string { return filepath.Join(dir, "quiz.json") },
-			wantErr: `unsupported builtin template: "json"`,
+			wantErr: `未対応の組み込みテンプレートです: "json"`,
 		},
 		{
 			name:    "csv into nonexistent directory",
 			builtin: BuiltinCSV,
 			output:  func(dir string) string { return filepath.Join(dir, "missing", "quiz.csv") },
-			wantErr: "failed to write output file",
+			wantErr: "出力ファイルの書き込みに失敗しました",
 		},
 		{
 			name:    "html into nonexistent directory",
 			builtin: BuiltinHTML,
 			output:  func(dir string) string { return filepath.Join(dir, "missing", "quiz.html") },
-			wantErr: "failed to write output file",
+			wantErr: "出力ファイルの書き込みに失敗しました",
 		},
 		{
 			name:    "markdown into nonexistent directory",
 			builtin: BuiltinMarkdown,
 			output:  func(dir string) string { return filepath.Join(dir, "missing", "quiz.md") },
-			wantErr: "failed to write output file",
+			wantErr: "出力ファイルの書き込みに失敗しました",
 		},
 	}
 
@@ -144,8 +144,8 @@ func TestConvertWriteError(t *testing.T) {
 			err := tt.convert(input, output, templateFile)
 
 			// Assert
-			if err == nil || !strings.Contains(err.Error(), "failed to write output file") {
-				t.Fatalf("error = %v, want it to contain %q", err, "failed to write output file")
+			if err == nil || !strings.Contains(err.Error(), "出力ファイルの書き込みに失敗しました") {
+				t.Fatalf("error = %v, want it to contain %q", err, "出力ファイルの書き込みに失敗しました")
 			}
 		})
 	}
@@ -215,7 +215,7 @@ func TestLookupBuiltinTemplateUnsupported(t *testing.T) {
 	_, err := lookupBuiltinTemplate(BuiltinTemplate("pdf"))
 
 	// Assert
-	if err == nil || !strings.Contains(err.Error(), `unsupported builtin template: "pdf"`) {
+	if err == nil || !strings.Contains(err.Error(), `未対応の組み込みテンプレートです: "pdf"`) {
 		t.Errorf("lookupBuiltinTemplate() error = %v, want unsupported builtin template error", err)
 	}
 }

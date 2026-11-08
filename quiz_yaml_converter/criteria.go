@@ -152,13 +152,12 @@ func AddQuotesIfNeeded(item string) string {
 		// Contains 」 somewhere (like 「美術館」（おまけ））
 		if strings.Contains(item, "」") {
 			return item
-		} else {
-			// Starts with 「 but no 」, add 」
-			return item + "」"
 		}
+		// Starts with 「 but no 」, add 」
+		return item + "」"
 	}
 	// Ends with 」 but doesn't start with 「
-	if !strings.HasPrefix(item, "「") && strings.HasSuffix(item, "」") {
+	if strings.HasSuffix(item, "」") {
 		return "「" + item
 	}
 	// No quotes at all, add both

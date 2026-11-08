@@ -50,7 +50,8 @@ type TemplateData struct {
 	Items []QuizItem // 問題データのリスト
 }
 
-// 出力される文字列
+// 出力ファイルの形式（CSV形式またはテンプレート形式）を表す型．
+// DetectOutputFormat が返す．値は形式を区別するためのもので，出力される内容や拡張子ではない．
 type OutputFormat string
 
 // 出力形式

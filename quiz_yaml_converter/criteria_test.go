@@ -43,6 +43,26 @@ func TestAddQuotesIfNeeded(t *testing.T) {
 			input:    "「test」something",
 			expected: "「test」something",
 		},
+		{
+			name:     "empty string",
+			input:    "",
+			expected: "「」",
+		},
+		{
+			name:     "opening quote only without content",
+			input:    "「",
+			expected: "「」",
+		},
+		{
+			name:     "closing quote only without content",
+			input:    "」",
+			expected: "「」",
+		},
+		{
+			name:     "closing quote inside without opening quote",
+			input:    "test」something",
+			expected: "「test」something」",
+		},
 	}
 
 	for _, tt := range tests {
