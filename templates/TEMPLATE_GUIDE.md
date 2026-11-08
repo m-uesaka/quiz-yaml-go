@@ -65,6 +65,8 @@ type Criteria struct {
 | `quoteAll` | 各要素に「」を付けて**区切り文字なしで**連結し，第2引数の文字列を末尾に付ける（第2引数は区切り文字ではない．リストが空なら空文字） | `{{quoteAll .NG "は誤答"}}` → `「誤答1」「誤答2」は誤答` |
 | `csvRow` | 引数を1行分のCSVレコードに整形（カンマ・`"`・改行を含む値は自動でクォート．末尾の改行は含まない） | `{{csvRow .Question .Answer}}` |
 | `csvField` | 1つの値をCSVのフィールドとしてエスケープ | `{{csvField .Question}}` |
+| `csvRowSafe` | `csvRow` と同じだが，`=` / `+` / `-` / `@` / タブ / CR で始まる値（先頭の半角スペースは無視）の先頭に `'` を付け，表計算ソフトで数式として解釈されないようにする | `{{csvRowSafe .Question .Answer}}` |
+| `csvFieldSafe` | `csvField` と同じだが，`csvRowSafe` と同じ規則で値の先頭に `'` を付ける | `{{csvFieldSafe .Question}}` |
 | `addQuotes` | 「」引用符を追加 | `{{addQuotes .Answer}}` |
 | `join` | 文字列スライスを結合 | `{{join .Strings ","}}` |
 | `upper` | 大文字に変換 | `{{upper .Question}}` |
@@ -196,13 +198,24 @@ type Criteria struct {
 
 #### CSVテンプレート
 
-CSVもテンプレートで列の構成や順序を変えられます．値にカンマ・ダブルクォート・改行が含まれていても壊れないよう，`csvRow`（または`csvField`）を使って出力してください．
+CSVもテンプレートで列の構成や順序を変えられます．値にカンマ・ダブルクォート・改行が含まれていても壊れないよう，`csvRowSafe`（または`csvFieldSafe`）を使って出力してください．
+
+`csvRowSafe` / `csvFieldSafe` は，`=HYPERLINK(...)` や `@SUM(...)` のような値をExcelやGoogle スプレッドシートで開いたときに数式として実行されないよう（CSV injection対策），次のように出力します．
+
+- `=` / `+` / `-` / `@` / タブ / CR で始まる値の先頭に `'` を付けます（例: `=1+2` → `'=1+2`，`- 項目` → `'- 項目`）．先頭の空白（全角スペースなどを含む）は無視して判定します
+- `-1` / `+5` / `-1.5` のように数値だけからなる値は，数式として実行されないため，そのまま出力します
+- `;` を含む値は，ダブルクォートで囲みます（`;` を区切り文字とする地域の表計算ソフトで，`a;=1+2` が別のセルに分かれて実行されないようにするため）
+- 全角の `＝` などで始まる値は対象外です
+
+表計算ソフト以外のプログラムで読み込むなど，値をそのまま出力したい場合は，`'` を付けない `csvRow` / `csvField` を使えます．ただし，他人が作ったYAMLを変換して表計算ソフトで開くと数式が実行されるおそれがあるため，信頼できるデータにだけ使ってください．ヘッダー行のような固定の文字列には `csvRow` を使って構いません．
+
+`-template` で指定する自作のCSVテンプレートでは，この対策は `csvRowSafe` / `csvFieldSafe` を使った箇所にだけ効きます．以前のガイドの例のように `csvRow` を使っている場合は，`csvRowSafe` に置き換えてください．
 
 `templates/quiz_template.csv` は，テンプレートを使わない場合のCSV出力に使われる組み込みテンプレートです（バイナリに埋め込まれているため，このファイルを編集しても再ビルドするまで `-format csv` の出力は変わりません）．列構成を変えたい場合は，このファイルをコピーして編集し，`-template` で指定してください．
 
 ```text
 {{csvRow "question" "answer" "spell" "criteria"}}
-{{range .Items}}{{csvRow .Question .Answer .Spell (formatCriteria .Criteria)}}
+{{range .Items}}{{csvRowSafe .Question .Answer .Spell (formatCriteria .Criteria)}}
 {{end -}}
 ```
 
@@ -210,12 +223,12 @@ CSVもテンプレートで列の構成や順序を変えられます．値に�
 
 ```text
 {{csvRow "no" "answer" "ok" "tags"}}
-{{range $i, $item := .Items}}{{csvRow (printf "%d" (add $i 1)) .Answer (quoteAll .OK "") (join .Tags " ")}}
+{{range $i, $item := .Items}}{{csvRowSafe (printf "%d" (add $i 1)) .Answer (quoteAll .OK "") (join .Tags " ")}}
 {{end -}}
 ```
 
 - `{{end -}}` の `-` は，最後の行のあとに余分な空行が出力されないようにするためのものです．
-- `csvRow` の引数はすべて文字列です．数値は `printf "%d"` で文字列に変換してください．
+- `csvRow` / `csvRowSafe` の引数はすべて文字列です．数値は `printf "%d"` で文字列に変換してください．
 
 ## 出力形式の自動判定
 

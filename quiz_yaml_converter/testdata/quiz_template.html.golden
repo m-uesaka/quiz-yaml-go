@@ -109,10 +109,30 @@
         
     </div>
     
+    <div class="quiz-item">
+        <div class="question">
+            <strong>Q5:</strong> =HYPERLINK(&#34;http://example.com&#34;,&#34;数式として解釈される問題&#34;)
+        </div>
+        <div class="answer">
+            <strong>A:</strong> -1
+        </div>
+        
+        <div class="spell">
+            <strong>読み:</strong> @SUM(A1)
+        </div>
+        
+        
+        
+        <div class="criteria">
+            <strong>判定:</strong> 「&#43;1」
+        </div>
+        
+    </div>
+    
     
     <div class="stats">
         <h2>📊 統計</h2>
-        <p>総問題数: <strong>4</strong>問</p>
+        <p>総問題数: <strong>5</strong>問</p>
         <p>生成日時: 2026年01月02日 03:04:05</p>
     </div>
 </body>

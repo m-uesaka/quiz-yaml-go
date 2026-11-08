@@ -4,3 +4,4 @@ question,answer,spell,criteria
 "<b>HTML</b> & ""記号"", カンマを含む問題",<i>答え3</i>,spell & <3>,「A&B」は誤答
 "改行を
 含む問題",答え4,,「えんががわ（読みが違うのでもう一度）」はもう一度
+"'=HYPERLINK(""http://example.com"",""数式として解釈される問題"")",-1,'@SUM(A1),「+1」

@@ -34,3 +34,9 @@
   criteria:
     repeat:
       - えんががわ（読みが違うのでもう一度）
+- question: "=HYPERLINK(\"http://example.com\",\"数式として解釈される問題\")"
+  answer: "-1"
+  spell: "@SUM(A1)"
+  criteria:
+    ok:
+      - "+1"
