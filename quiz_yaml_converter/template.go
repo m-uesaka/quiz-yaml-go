@@ -29,13 +29,9 @@ type templateExecutor interface {
 	Execute(w io.Writer, data any) error
 }
 
-// テンプレート関数 now が使う現在時刻の取得元．
-// テストで時刻を固定するために差し替えられるよう，変数にしている．
-// 差し替えるテストは t.Cleanup で元に戻し，t.Parallel を使わないこと．
-var nowFunc = time.Now
-
 // テンプレートに提供する関数のうち，エスケープモードに依存しないもの．
-func baseTemplateFuncs() map[string]any {
+// now はテンプレート関数 now が返す時刻の取得元（通常は time.Now）．
+func baseTemplateFuncs(now func() time.Time) map[string]any {
 	return map[string]any{
 		"formatCriteria": (*Criteria).Format,
 		"quoteAll":       formatCriteriaSection,
@@ -49,9 +45,9 @@ func baseTemplateFuncs() map[string]any {
 		"add": func(a, b int) int {
 			return a + b
 		},
-		// 時刻は nowFunc が返したタイムゾーンのまま（通常はローカル時刻で）出力する．
+		// 時刻は now が返したタイムゾーンのまま（通常はローカル時刻で）出力する．
 		"now": func() string {
-			return nowFunc().Format("2006年01月02日 15:04:05")
+			return now().Format("2006年01月02日 15:04:05")
 		},
 	}
 }
@@ -60,8 +56,15 @@ func baseTemplateFuncs() map[string]any {
 // HTMLモードではhtml/templateを使用して値を自動的にエスケープし，
 // それ以外ではtext/templateを使用して値をそのまま出力する．
 // どちらのモードでも safeHTML と escapeHTML が使用でき，同じテンプレートが両方で動作する．
+// テンプレート関数 now は現在時刻（time.Now）を返す．
 func parseTemplate(content string, htmlMode bool) (templateExecutor, error) {
-	funcs := baseTemplateFuncs()
+	return parseTemplateWithClock(content, htmlMode, time.Now)
+}
+
+// parseTemplateWithClock は parseTemplate と同じくテンプレートを解析する．
+// テンプレート関数 now は，引数の now が返す時刻を出力する．テストで時刻を固定するために使う．
+func parseTemplateWithClock(content string, htmlMode bool, now func() time.Time) (templateExecutor, error) {
+	funcs := baseTemplateFuncs(now)
 	if htmlMode {
 		// エスケープ済みであることを示すため template.HTML を返し，二重エスケープを防ぐ．
 		funcs["escapeHTML"] = func(s string) htmltemplate.HTML {

@@ -20,13 +20,9 @@ import (
 // "flag provided but not defined" で失敗する．
 var update = flag.Bool("update", false, "update golden files in testdata")
 
-// テンプレート関数 now が返す時刻を，テストの間だけ固定する補助関数．
-// nowFunc はパッケージ内で共有する変数のため，この関数を使うテストでは t.Parallel を使わないこと．
-func setNow(t *testing.T, now time.Time) {
-	t.Helper()
-	original := nowFunc
-	nowFunc = func() time.Time { return now }
-	t.Cleanup(func() { nowFunc = original })
+// 常に同じ時刻を返す関数を返す．テンプレート関数 now の時刻を固定するために使う．
+func fixedClock(now time.Time) func() time.Time {
+	return func() time.Time { return now }
 }
 
 // テンプレートを実行して出力を文字列で返すテスト用の補助関数．
@@ -273,9 +269,11 @@ func TestAccessorsWorkWithTemplateFuncs(t *testing.T) {
 	}
 }
 
-// テンプレート関数 now が，nowFunc の時刻を「2006年01月02日 15:04:05」の形式で出力することを確認する．
-// タイムゾーンは変換せず，nowFunc が返した時刻のタイムゾーンのまま出力する．
+// テンプレート関数 now が，渡した時刻を「2006年01月02日 15:04:05」の形式で出力することを確認する．
+// タイムゾーンは変換せず，渡した時刻のタイムゾーンのまま出力する．
 func TestNowTemplateFunc(t *testing.T) {
+	jst := time.FixedZone("JST", 9*60*60)
+
 	tests := []struct {
 		name     string
 		now      time.Time
@@ -283,18 +281,19 @@ func TestNowTemplateFunc(t *testing.T) {
 	}{
 		{
 			name:     "1桁の月日と時分秒は0で埋める",
-			now:      time.Date(2026, 1, 2, 3, 4, 5, 0, time.FixedZone("JST", 9*60*60)),
+			now:      time.Date(2026, 1, 2, 3, 4, 5, 0, jst),
 			expected: "2026年01月02日 03:04:05",
 		},
 		{
 			name:     "2桁の月日と時分秒",
-			now:      time.Date(2026, 12, 31, 23, 59, 59, 0, time.FixedZone("JST", 9*60*60)),
+			now:      time.Date(2026, 12, 31, 23, 59, 59, 0, jst),
 			expected: "2026年12月31日 23:59:59",
 		},
 		{
-			name:     "UTCの時刻はUTCのまま出力する",
-			now:      time.Date(2026, 12, 31, 23, 59, 59, 0, time.UTC),
-			expected: "2026年12月31日 23:59:59",
+			// 1つ上のケースと同じ瞬間をUTCで表した時刻．JSTに変換されずUTCのまま出力されることを確認する．
+			name:     "同じ瞬間でもUTCの時刻はUTCのまま出力する",
+			now:      time.Date(2026, 12, 31, 23, 59, 59, 0, jst).UTC(),
+			expected: "2026年12月31日 14:59:59",
 		},
 		{
 			name:     "秒未満は切り捨てる",
@@ -311,16 +310,20 @@ func TestNowTemplateFunc(t *testing.T) {
 			}
 			t.Run(tt.name+"/"+mode, func(t *testing.T) {
 				// Arrange
-				setNow(t, tt.now)
+				tmpl, err := parseTemplateWithClock("{{now}}", htmlMode, fixedClock(tt.now))
+				if err != nil {
+					t.Fatalf("parseTemplateWithClock() error = %v", err)
+				}
+				var buf bytes.Buffer
 
 				// Act
-				got, err := executeTemplate(t, "{{now}}", htmlMode, nil)
+				err = tmpl.Execute(&buf, TemplateData{})
 
 				// Assert
 				if err != nil {
 					t.Fatalf("Execute() error = %v", err)
 				}
-				if got != tt.expected {
+				if got := buf.String(); got != tt.expected {
 					t.Errorf("now (htmlMode=%v) = %q, want %q", htmlMode, got, tt.expected)
 				}
 			})
@@ -329,9 +332,10 @@ func TestNowTemplateFunc(t *testing.T) {
 }
 
 // 組み込みテンプレートの出力をtestdata/*.goldenと比較するスナップショットテスト．
-// 生成日時（now）は実行ごとに変わるため，タイムゾーンを含めて固定した時刻を返すように差し替える．
+// 生成日時（now）は実行ごとに変わるため，タイムゾーンを含めて固定した時刻でテンプレートを実行する．
+// （ConvertToTemplate では時刻を指定できないため，読み込み・HTMLモードの判定・実行を同じ手順で行う．）
 func TestBuiltinTemplateSnapshot(t *testing.T) {
-	setNow(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.FixedZone("JST", 9*60*60)))
+	clock := fixedClock(time.Date(2026, 1, 2, 3, 4, 5, 0, time.FixedZone("JST", 9*60*60)))
 
 	tests := []struct {
 		name       string
@@ -347,20 +351,28 @@ func TestBuiltinTemplateSnapshot(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Arrange
-			yamlFile := filepath.Join("testdata", "quiz.yaml")
+			data, err := LoadYAMLData(filepath.Join("testdata", "quiz.yaml"))
+			if err != nil {
+				t.Fatalf("LoadYAMLData() error = %v", err)
+			}
 			templateFile := filepath.Join("..", "templates", tt.template)
-			outputFile := filepath.Join(t.TempDir(), tt.outputName)
+			content, err := os.ReadFile(templateFile)
+			if err != nil {
+				t.Fatalf("Failed to read template file: %v", err)
+			}
 			goldenFile := filepath.Join("testdata", tt.golden)
+			htmlMode := isHTMLPath(templateFile) || isHTMLPath(tt.outputName)
 
 			// Act
-			if err := Convert(yamlFile, outputFile, templateFile); err != nil {
-				t.Fatalf("Convert() error = %v", err)
-			}
-			output, err := os.ReadFile(outputFile)
+			tmpl, err := parseTemplateWithClock(string(content), htmlMode, clock)
 			if err != nil {
-				t.Fatalf("Failed to read output file: %v", err)
+				t.Fatalf("parseTemplateWithClock() error = %v", err)
 			}
-			got := string(output)
+			var buf bytes.Buffer
+			if err := tmpl.Execute(&buf, TemplateData{Items: data}); err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			got := buf.String()
 
 			// Assert
 			if *update {
