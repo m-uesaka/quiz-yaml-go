@@ -17,22 +17,24 @@ func runCLI(args ...string) (code int, stdout, stderr string) {
 	return code, outBuf.String(), errBuf.String()
 }
 
-// writeFile はdir/nameにcontentを書き込み，そのパスを返す
-func writeFile(t *testing.T, dir, name, content string) string {
+// テスト用のファイルを dir/name に権限0o644で作成し，そのパスを返す．
+// quiz_yaml_converter パッケージのテストの writeFile と同じ（テストのヘルパーはパッケージをまたいで使えないため，両方に置いている）．
+func writeFile(t testing.TB, dir, name, content string) string {
 	t.Helper()
-	p := filepath.Join(dir, name)
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatalf("failed to write fixture: %v", err)
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write %s: %v", path, err)
 	}
-	return p
+	return path
 }
 
-// readFile はpathの内容を返す
-func readFile(t *testing.T, path string) string {
+// path のファイルの内容を文字列で返す．
+// quiz_yaml_converter パッケージのテストの readFile と同じ．
+func readFile(t testing.TB, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("failed to read output: %v", err)
+		t.Fatalf("failed to read %s: %v", path, err)
 	}
 	return string(b)
 }

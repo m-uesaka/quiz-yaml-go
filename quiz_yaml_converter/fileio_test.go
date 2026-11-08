@@ -382,9 +382,7 @@ func TestWriteFileAtomicRelativeSymlinkThroughSymlinkedDir(t *testing.T) {
 			}
 			target := filepath.Join(dir, "proj", "shared", "quiz.csv")
 			if tt.targetExists {
-				if err := os.WriteFile(target, []byte("古い内容"), 0o644); err != nil {
-					t.Fatalf("failed to write target: %v", err)
-				}
+				writeFile(t, filepath.Join(dir, "proj", "shared"), "quiz.csv", "古い内容")
 			}
 			if err := os.Symlink(filepath.Join("..", "shared", "quiz.csv"), filepath.Join(dir, "proj", "out", "quiz.csv")); err != nil {
 				t.Skipf("symlink is not available: %v", err)

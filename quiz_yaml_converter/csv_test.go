@@ -76,10 +76,8 @@ func TestConvertYAMLToCSV(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// 一時ファイルを作成
+			// 出力先のパスと，入力のYAMLファイルを用意する
 			csvFile := filepath.Join(tempDir, "test_output.csv")
-
-			// YAMLファイルを作成
 			yamlFile := writeFile(t, tempDir, "test_input.yaml", tt.yamlContent)
 
 			// テスト対象関数を実行

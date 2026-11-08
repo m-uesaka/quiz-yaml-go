@@ -7,6 +7,7 @@ import (
 )
 
 // テスト用のファイルを dir/name に権限0o644で作成し，そのパスを返す．
+// ルートのパッケージ（main）のテストの writeFile と同じ（テストのヘルパーはパッケージをまたいで使えないため，両方に置いている）．
 func writeFile(t testing.TB, dir, name, content string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
@@ -17,6 +18,7 @@ func writeFile(t testing.TB, dir, name, content string) string {
 }
 
 // path のファイルの内容を文字列で返す．
+// ルートのパッケージ（main）のテストの readFile と同じ．
 func readFile(t testing.TB, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
